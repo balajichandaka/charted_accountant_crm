@@ -1,36 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CA Practice Management System
 
-## Getting Started
+A full-stack work-management app for Chartered Accountant practices — clients, template-driven ticketing, recurring schedules, and analytics.
 
-First, run the development server:
+## Stack
+- Next.js 16 (App Router) + TypeScript + Tailwind CSS + shadcn/ui
+- PostgreSQL + Prisma ORM
+- Auth.js v5 (credentials)
+- Nodemailer → Mailpit (dev email inbox)
+
+---
+
+## Run locally (Docker — one command)
+
+Requires Docker / Colima running.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+docker compose up --build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Service | URL |
+|---|---|
+| App | http://localhost:3000 |
+| Email inbox (Mailpit) | http://localhost:8025 |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The container auto-migrates the DB and seeds demo data on first start.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## Run locally (dev server — no Docker needed for app)
 
-To learn more about Next.js, take a look at the following resources:
+> Start DB and Mailpit first: `docker compose up db mailpit -d`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npx prisma migrate dev
+npx prisma db seed
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+App: http://localhost:3000
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Demo login credentials
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Role | Email | Password |
+|---|---|---|
+| CA (Admin) | ca@firm.test | password123 |
+| Employee | priya@firm.test | password123 |
+| Employee | rahul@firm.test | password123 |
+
+---
+
+## Features
+
+- **Work Templates** — CA authors Task + ordered Sub-tasks under a Category (GST, ITR, MCA, PF, ESI…)
+- **Template-driven tickets** — pick a template at create time; prefills fields and snapshots the checklist
+- **Kanban board** — drag cards across Open → In Progress → Review → Done
+- **Email notifications** — assignee gets an email (visible in Mailpit at :8025) on create/reassign
+- **Recurring schedules** — auto-generate tickets per client on a schedule (monthly, quarterly…)
+- **Analytics dashboard** — employee productivity, throughput, work-mix by category, client health
+- **Role-based access** — CA sees everything; employees see their own work
+
+---
+
+## Cron (recurring ticket generation)
+
+```bash
+curl -X POST http://localhost:3000/api/cron/recurring \
+  -H "Authorization: Bearer c0f487898ec28560067581803057de60"
+```
+
+Or use the **"Run generation now"** button on the /recurring page.

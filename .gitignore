@@ -39,3 +39,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Monorepo subfolders (frontend/ and backend/)
+node_modules/
+.next/
+dist/
+/backend/dist
+build/
+*.log
+
+# Prisma generated client (regenerated on install)
+**/node_modules/.prisma
