@@ -50,16 +50,19 @@ export function TicketEditDialog({
   ticket,
   categories,
   employees,
+  managers,
 }: {
   ticket: {
     id: string;
     title: string;
     categoryId: string;
     assigneeId: string;
+    managerId: string;
     priority: Priority;
     frequency: Frequency;
     billable: Billable;
     invoiceStatus: InvoiceNote;
+    targetHours: number | undefined;
     description: string;
     documentsRequired: string;
     startDate: string;
@@ -67,11 +70,13 @@ export function TicketEditDialog({
   };
   categories: { id: string; name: string }[];
   employees: { id: string; name: string }[];
+  managers: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const UNASSIGNED = "__unassigned__";
   const NOCAT = "__none__";
+  const NOMGR = "__nomgr__";
 
   const {
     register,
@@ -158,6 +163,31 @@ export function TicketEditDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Manager</Label>
+            <Select
+              value={watch("managerId") || NOMGR}
+              onValueChange={(v) => setValue("managerId", v === NOMGR ? "" : v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NOMGR}>No manager</SelectItem>
+                {managers.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Target hours</Label>
+            <Input type="number" min="0" step="0.5" {...register("targetHours")} />
           </div>
 
           <div className="space-y-1.5">

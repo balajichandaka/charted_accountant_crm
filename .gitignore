@@ -50,3 +50,7 @@ build/
 
 # Prisma generated client (regenerated on install)
 **/node_modules/.prisma
+
+# Uploaded files (local dev)
+backend/uploads/
+uploads/

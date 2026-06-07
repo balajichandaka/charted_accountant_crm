@@ -120,6 +120,51 @@ export function CategoryPieChart({
   );
 }
 
+export function HoursByEmployeeChart({
+  data,
+}: {
+  data: { name: string; hours: number }[];
+}) {
+  if (data.length === 0) return <Empty>No time logged yet.</Empty>;
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <BarChart data={data} margin={{ left: -16, right: 8, top: 8 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
+        <XAxis dataKey="name" tick={{ fontSize: 12, fill: AXIS }} tickLine={false} axisLine={false} />
+        <YAxis tick={{ fontSize: 12, fill: AXIS }} tickLine={false} axisLine={false} />
+        <Tooltip
+          cursor={{ fill: "var(--muted)" }}
+          formatter={(v) => [`${v} h`, "Hours"]}
+          contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
+        />
+        <Bar dataKey="hours" fill="var(--chart-2)" radius={[6, 6, 0, 0]} maxBarSize={48} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function HoursPerDayChart({
+  data,
+}: {
+  data: { day: string; hours: number }[];
+}) {
+  if (data.length === 0) return <Empty>No time logged yet.</Empty>;
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <LineChart data={data} margin={{ left: -16, right: 8, top: 8 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
+        <XAxis dataKey="day" tick={{ fontSize: 12, fill: AXIS }} tickLine={false} axisLine={false} />
+        <YAxis tick={{ fontSize: 12, fill: AXIS }} tickLine={false} axisLine={false} />
+        <Tooltip
+          formatter={(v) => [`${v} h`, "Hours"]}
+          contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
+        />
+        <Line type="monotone" dataKey="hours" stroke="var(--chart-3)" strokeWidth={2.5} dot={{ r: 3, fill: "var(--chart-3)" }} />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
 function Empty({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">

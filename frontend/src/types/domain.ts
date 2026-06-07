@@ -1,7 +1,7 @@
 // Domain types for the frontend — no @prisma/client dependency.
 // These mirror the Prisma schema enums and model shapes used across components.
 
-export type Role = "CA" | "EMPLOYEE";
+export type Role = "CA" | "MANAGER" | "EMPLOYEE";
 export type TicketStatus = "OPEN" | "IN_PROGRESS" | "REVIEW" | "BLOCKED" | "DONE" | "CANCELLED";
 export type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 export type Frequency = "ONE_TIME" | "WEEKLY" | "MONTHLY" | "QUARTERLY" | "HALF_YEARLY" | "YEARLY" | "CUSTOM";
@@ -56,6 +56,7 @@ export type Ticket = {
   frequency: Frequency;
   billable: BillableType;
   invoiceStatus: InvoiceStatusNote;
+  targetMinutes: number | null;
   documentsRequired: string | null;
   startDate: Date | string | null;
   dueDate: Date | string | null;
@@ -64,7 +65,28 @@ export type Ticket = {
   categoryId: string | null;
   templateId: string | null;
   assigneeId: string | null;
+  managerId: string | null;
   reporterId: string;
   createdAt: Date | string;
   updatedAt: Date | string;
+};
+
+export type TimeEntry = {
+  id: string;
+  minutes: number;
+  description: string | null;
+  workDate: Date | string;
+  billable: boolean;
+  createdAt: Date | string;
+  userId: string;
+  user?: Pick<User, "id" | "name">;
+};
+
+export type Attachment = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  commentId: string | null;
+  createdAt: Date | string;
 };

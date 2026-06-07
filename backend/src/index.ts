@@ -8,6 +8,7 @@ import templatesRouter from "./routes/templates";
 import ticketsRouter from "./routes/tickets";
 import recurringRouter from "./routes/recurring";
 import analyticsRouter from "./routes/analytics";
+import attachmentsRouter from "./routes/attachments";
 import cronRouter from "./routes/cron";
 import { errorHandler } from "./middleware/error";
 
@@ -28,6 +29,7 @@ app.use("/api/templates",  templatesRouter);
 app.use("/api/tickets",    ticketsRouter);
 app.use("/api/recurring",  recurringRouter);
 app.use("/api/analytics",  analyticsRouter);
+app.use("/api/attachments", attachmentsRouter);
 app.use("/api/cron",       cronRouter);
 
 app.use(errorHandler);

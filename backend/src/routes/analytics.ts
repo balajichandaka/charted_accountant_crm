@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { subDays, startOfDay, endOfWeek } from "date-fns";
+import { subDays, startOfDay, endOfWeek, startOfWeek } from "date-fns";
 import { prisma } from "../lib/prisma";
 import { authMiddleware } from "../middleware/auth";
 
@@ -7,25 +7,39 @@ const router = Router();
 router.use(authMiddleware);
 
 const OPEN = ["OPEN", "IN_PROGRESS", "REVIEW", "BLOCKED"] as const;
+const LIST_SELECT = {
+  id: true, ticketNumber: true, title: true, status: true, priority: true,
+  dueDate: true, client: { select: { name: true } },
+};
 
 router.get("/dashboard", async (req, res, next) => {
   try {
     const isCA = req.user?.role === "CA";
     const userId = req.user!.sub;
     const now = new Date();
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-    const last30 = subDays(startOfDay(now), 30);
-    const scope = isCA ? {} : { assigneeId: userId };
-    const OPEN_S = ["OPEN", "IN_PROGRESS", "REVIEW", "BLOCKED"] as const;
+    const dayStart = startOfDay(now);
+    const last30 = subDays(dayStart, 30);
+    // Non-CA users see tickets where they are assignee OR manager.
+    const scope = isCA ? {} : { OR: [{ assigneeId: userId }, { managerId: userId }] };
 
-    const [openCount, dueThisWeek, completed30, activeClients, byStatus, dueSoon, workload] = await Promise.all([
-      prisma.ticket.count({ where: { ...scope, status: { in: [...OPEN_S] } } }),
-      prisma.ticket.count({ where: { ...scope, status: { in: [...OPEN_S] }, dueDate: { gte: now, lte: weekEnd } } }),
+    const [
+      openCount, dueThisWeek, completed30, activeClients, byStatus,
+      openTickets, dueThisWeekTickets, completedTickets, workload,
+      myToday, myWeek,
+    ] = await Promise.all([
+      prisma.ticket.count({ where: { ...scope, status: { in: [...OPEN] } } }),
+      prisma.ticket.count({ where: { ...scope, status: { in: [...OPEN] }, dueDate: { gte: now, lte: weekEnd } } }),
       prisma.ticket.count({ where: { ...scope, status: "DONE", completedAt: { gte: last30 } } }),
       isCA ? prisma.client.count({ where: { isActive: true } }) : prisma.ticket.count({ where: { ...scope, status: "DONE" } }),
       prisma.ticket.groupBy({ by: ["status"], where: scope, _count: { _all: true } }),
-      prisma.ticket.findMany({ where: { ...scope, status: { in: [...OPEN_S] } }, orderBy: [{ dueDate: "asc" }, { priority: "desc" }], take: 8, include: { client: true, assignee: true } }),
-      isCA ? prisma.ticket.groupBy({ by: ["assigneeId"], where: { status: { in: [...OPEN_S] } }, _count: { _all: true } }) : Promise.resolve([]),
+      prisma.ticket.findMany({ where: { ...scope, status: { in: [...OPEN] } }, orderBy: [{ dueDate: "asc" }, { priority: "desc" }], take: 50, select: LIST_SELECT }),
+      prisma.ticket.findMany({ where: { ...scope, status: { in: [...OPEN] }, dueDate: { gte: now, lte: weekEnd } }, orderBy: { dueDate: "asc" }, take: 50, select: LIST_SELECT }),
+      prisma.ticket.findMany({ where: { ...scope, status: "DONE", completedAt: { gte: last30 } }, orderBy: { completedAt: "desc" }, take: 50, select: LIST_SELECT }),
+      isCA ? prisma.ticket.groupBy({ by: ["assigneeId"], where: { status: { in: [...OPEN] } }, _count: { _all: true } }) : Promise.resolve([]),
+      prisma.timeEntry.aggregate({ where: { userId, workDate: { gte: dayStart } }, _sum: { minutes: true } }),
+      prisma.timeEntry.aggregate({ where: { userId, workDate: { gte: weekStart } }, _sum: { minutes: true } }),
     ]);
 
     let workloadRows: { name: string; count: number }[] = [];
@@ -36,7 +50,18 @@ router.get("/dashboard", async (req, res, next) => {
       workloadRows = workload.map((w) => ({ name: w.assigneeId ? nameById.get(w.assigneeId) ?? "Unknown" : "Unassigned", count: w._count._all })).sort((a, b) => b.count - a.count);
     }
 
-    res.json({ ok: true, data: { openCount, dueThisWeek, completed30, activeClients, byStatus, dueSoon, workloadRows } });
+    res.json({
+      ok: true,
+      data: {
+        openCount, dueThisWeek, completed30, activeClients,
+        byStatus: Object.fromEntries(byStatus.map((s) => [s.status, s._count._all])),
+        dueSoon: openTickets.slice(0, 8),
+        openTickets, dueThisWeekTickets, completedTickets,
+        workloadRows,
+        myHoursToday: Math.round((myToday._sum.minutes ?? 0) / 6) / 10,
+        myHoursThisWeek: Math.round((myWeek._sum.minutes ?? 0) / 6) / 10,
+      },
+    });
   } catch (err) { next(err); }
 });
 
@@ -45,7 +70,7 @@ router.get("/", async (req, res, next) => {
     const now = new Date();
     const last30 = subDays(startOfDay(now), 30);
 
-    const [total, open, done30, byStatus, employees, solvedByEmployee, categoryMix, billableMix, throughputRaw, topClientsRaw, clientHealthRaw] = await Promise.all([
+    const [total, open, done30, byStatus, employees, solvedByEmployee, categoryMix, billableMix, throughputRaw, topClientsRaw, clientHealthRaw, hoursByEmployeeRaw, hoursPerDayRaw] = await Promise.all([
       prisma.ticket.count(),
       prisma.ticket.count({ where: { status: { in: [...OPEN] } } }),
       prisma.ticket.count({ where: { status: "DONE", completedAt: { gte: last30 } } }),
@@ -57,11 +82,11 @@ router.get("/", async (req, res, next) => {
       prisma.$queryRaw<{ month: Date; count: bigint }[]>`SELECT date_trunc('month', "completedAt") AS month, count(*) FROM "Ticket" WHERE status = 'DONE' AND "completedAt" IS NOT NULL GROUP BY month ORDER BY month DESC LIMIT 12`,
       prisma.ticket.groupBy({ by: ["clientId"], where: { status: { in: [...OPEN] } }, _count: { _all: true }, orderBy: { _count: { clientId: "desc" } }, take: 10 }),
       prisma.client.findMany({ where: { isActive: true }, include: { _count: { select: { tickets: true } } } }),
+      prisma.timeEntry.groupBy({ by: ["userId"], _sum: { minutes: true } }),
+      prisma.$queryRaw<{ day: Date; minutes: bigint }[]>`SELECT date_trunc('day', "workDate") AS day, sum(minutes) AS minutes FROM "TimeEntry" WHERE "workDate" >= ${last30} GROUP BY day ORDER BY day ASC`,
     ]);
 
-    const [categories] = await Promise.all([
-      prisma.category.findMany({ select: { id: true, name: true, colorHex: true } }),
-    ]);
+    const categories = await prisma.category.findMany({ select: { id: true, name: true, colorHex: true } });
 
     const clientIds = topClientsRaw.map((r) => r.clientId);
     const clientNames = await prisma.client.findMany({ where: { id: { in: clientIds } }, select: { id: true, name: true } });
@@ -80,6 +105,11 @@ router.get("/", async (req, res, next) => {
         throughput: throughputRaw.map((r) => ({ month: r.month, count: Number(r.count) })).reverse(),
         topClients: topClientsRaw.map((r) => ({ name: clientNameMap.get(r.clientId) ?? "Unknown", count: r._count._all })),
         clientHealth: clientHealthRaw.map((c) => ({ id: c.id, name: c.name, totalTickets: c._count.tickets })),
+        hoursByEmployee: hoursByEmployeeRaw
+          .map((h) => ({ name: nameById.get(h.userId) ?? "Unknown", hours: Math.round((h._sum.minutes ?? 0) / 6) / 10 }))
+          .filter((h) => h.hours > 0)
+          .sort((a, b) => b.hours - a.hours),
+        hoursPerDay: hoursPerDayRaw.map((r) => ({ day: r.day, hours: Math.round(Number(r.minutes) / 6) / 10 })),
       },
     });
   } catch (err) { next(err); }

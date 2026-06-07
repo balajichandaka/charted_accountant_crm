@@ -16,6 +16,7 @@ datasource db {
 
 enum Role {
   CA
+  MANAGER
   EMPLOYEE
 }
 
@@ -98,6 +99,7 @@ model User {
   updatedAt    DateTime @updatedAt
 
   assignedTickets    Ticket[]            @relation("TicketAssignee")
+  managedTickets     Ticket[]            @relation("TicketManager")
   reportedTickets    Ticket[]            @relation("TicketReporter")
   assignedSubtasks   TicketSubtask[]
   comments           TicketComment[]
@@ -208,6 +210,7 @@ model Ticket {
   documentsRequired String?
   billable          BillableType      @default(BILLABLE)
   invoiceStatus     InvoiceStatusNote @default(NOT_APPLICABLE)
+  targetMinutes     Int?
   startDate         DateTime?
   dueDate           DateTime?
   completedAt       DateTime?
@@ -222,6 +225,8 @@ model Ticket {
   template   WorkTemplate? @relation(fields: [templateId], references: [id])
   assigneeId String?
   assignee   User?         @relation("TicketAssignee", fields: [assigneeId], references: [id])
+  managerId  String?
+  manager    User?         @relation("TicketManager", fields: [managerId], references: [id])
   reporterId String
   reporter   User          @relation("TicketReporter", fields: [reporterId], references: [id])
 
@@ -238,6 +243,7 @@ model Ticket {
   @@unique([recurringScheduleId, periodLabel])
   @@index([status])
   @@index([assigneeId])
+  @@index([managerId])
   @@index([clientId])
   @@index([categoryId])
 }
@@ -272,6 +278,8 @@ model TicketComment {
   parent   TicketComment?  @relation("CommentThread", fields: [parentId], references: [id])
   replies  TicketComment[] @relation("CommentThread")
 
+  attachments Attachment[]
+
   @@index([ticketId])
 }
 
@@ -302,10 +310,13 @@ model Attachment {
 
   ticketId     String
   ticket       Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  commentId    String?
+  comment      TicketComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
   uploadedById String
   uploadedBy   User   @relation(fields: [uploadedById], references: [id])
 
   @@index([ticketId])
+  @@index([commentId])
 }
 
 // ---------------------------------------------------------------------------

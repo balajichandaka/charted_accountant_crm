@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:4000";
+export const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:4000";
 
 type ApiResponse<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -35,6 +35,25 @@ export async function apiMutate<T = void>(
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(body),
+    });
+    const json: ApiResponse<T> = await res.json();
+    return json;
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Network error" };
+  }
+}
+
+/** Multipart upload (no JSON Content-Type so the boundary is set automatically). */
+export async function apiUpload<T = unknown>(
+  path: string,
+  formData: FormData,
+  token?: string
+): Promise<{ ok: true; data?: T } | { ok: false; error: string }> {
+  try {
+    const res = await fetch(`${BACKEND_URL}${path}`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
     });
     const json: ApiResponse<T> = await res.json();
     return json;

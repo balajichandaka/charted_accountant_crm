@@ -1,14 +1,21 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { notifyTicketAssigned } from "../lib/notifications";
+import {
+  notifyTicketAssigned,
+  notifyTicketParticipants,
+} from "../lib/notifications";
 import { authMiddleware } from "../middleware/auth";
-import type { TicketStatus } from "@prisma/client";
+import { upload } from "../lib/upload";
+import { Role, type TicketStatus } from "@prisma/client";
 
 const router = Router();
 router.use(authMiddleware);
 
 const BOARD_STATUSES: TicketStatus[] = ["OPEN", "IN_PROGRESS", "REVIEW", "BLOCKED", "DONE"];
+
+// Managers eligible to oversee a ticket: MANAGER or CA users.
+const MANAGER_WHERE = { isActive: true, role: { in: [Role.MANAGER, Role.CA] } };
 
 const ticketSchema = z.object({
   title: z.string().trim().min(1),
@@ -17,10 +24,12 @@ const ticketSchema = z.object({
   categoryId: z.string().optional().or(z.literal("")),
   templateId: z.string().optional().or(z.literal("")),
   assigneeId: z.string().optional().or(z.literal("")),
+  managerId: z.string().optional().or(z.literal("")),
   priority: z.enum(["LOW","MEDIUM","HIGH","URGENT"]).default("MEDIUM"),
   frequency: z.enum(["ONE_TIME","WEEKLY","MONTHLY","QUARTERLY","HALF_YEARLY","YEARLY","CUSTOM"]).default("ONE_TIME"),
   billable: z.enum(["BILLABLE","NON_BILLABLE"]).default("BILLABLE"),
   invoiceStatus: z.enum(["NOT_APPLICABLE","PENDING","ISSUED"]).default("NOT_APPLICABLE"),
+  targetMinutes: z.coerce.number().int().min(0).optional(),
   documentsRequired: z.string().optional().or(z.literal("")),
   startDate: z.string().optional().or(z.literal("")),
   dueDate: z.string().optional().or(z.literal("")),
@@ -29,21 +38,34 @@ const ticketSchema = z.object({
 
 // Full ticket include used across multiple queries
 const fullInclude = {
-  client: true, category: true, assignee: true, reporter: true, template: true,
+  client: true, category: true, assignee: true, manager: true, reporter: true, template: true,
   subtasks: { orderBy: { order: "asc" as const } },
-  comments: { include: { author: true, replies: { include: { author: true } } }, where: { parentId: null }, orderBy: { createdAt: "asc" as const } },
+  comments: {
+    include: {
+      author: true,
+      attachments: true,
+      replies: { include: { author: true, attachments: true } },
+    },
+    where: { parentId: null },
+    orderBy: { createdAt: "asc" as const },
+  },
   timeEntries: { include: { user: true }, orderBy: { workDate: "desc" as const } },
   attachments: { include: { uploadedBy: true } },
   activities: { include: { actor: true }, orderBy: { createdAt: "desc" as const } },
 };
+
+// Non-CA users see tickets they're the assignee OR manager of.
+function scopeFor(req: { user?: { role: string; sub: string } }) {
+  if (req.user?.role === "CA") return {};
+  return { OR: [{ assigneeId: req.user?.sub }, { managerId: req.user?.sub }] };
+}
 
 // GET /api/tickets?status=&priority=&assigneeId=&clientId=&categoryId=&search=
 router.get("/", async (req, res, next) => {
   try {
     const q = req.query as Record<string, string | string[]>;
     const { status, priority, assigneeId, clientId, categoryId, search } = Object.fromEntries(Object.entries(q).map(([k,v]) => [k, Array.isArray(v) ? v[0] : v])) as Record<string, string | undefined>;
-    const isCA = req.user?.role === "CA";
-    const where: Record<string, unknown> = isCA ? {} : { assigneeId: req.user?.sub };
+    const where: Record<string, unknown> = scopeFor(req);
     if (status) where.status = { in: status.split(",") };
     if (priority) where.priority = { in: priority.split(",") };
     if (assigneeId) where.assigneeId = assigneeId;
@@ -64,8 +86,7 @@ router.get("/", async (req, res, next) => {
 // GET /api/tickets/board
 router.get("/board", async (req, res, next) => {
   try {
-    const isCA = req.user?.role === "CA";
-    const where = isCA ? { status: { in: BOARD_STATUSES } } : { status: { in: BOARD_STATUSES }, assigneeId: req.user?.sub };
+    const where = { status: { in: BOARD_STATUSES }, ...scopeFor(req) };
     const tickets = await prisma.ticket.findMany({ where, orderBy: [{ priority: "desc" }, { dueDate: "asc" }], take: 300, include: { client: true, assignee: true, category: true, _count: { select: { subtasks: true } } } });
     res.json({ ok: true, data: tickets });
   } catch (err) { next(err); }
@@ -74,13 +95,14 @@ router.get("/board", async (req, res, next) => {
 // GET /api/tickets/new-form  (dropdown data for the create form)
 router.get("/new-form", async (_req, res, next) => {
   try {
-    const [categories, templates, clients, employees] = await Promise.all([
+    const [categories, templates, clients, employees, managers] = await Promise.all([
       prisma.category.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
       prisma.workTemplate.findMany({ where: { isActive: true }, include: { subtasks: { orderBy: { order: "asc" } } } }),
       prisma.client.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
       prisma.user.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, role: true } }),
+      prisma.user.findMany({ where: MANAGER_WHERE, orderBy: { name: "asc" }, select: { id: true, name: true, role: true } }),
     ]);
-    res.json({ ok: true, data: { categories, templates, clients, employees } });
+    res.json({ ok: true, data: { categories, templates, clients, employees, managers } });
   } catch (err) { next(err); }
 });
 
@@ -89,11 +111,12 @@ router.get("/:id", async (req, res, next) => {
   try {
     const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id }, include: fullInclude });
     if (!ticket) { res.status(404).json({ ok: false, error: "Not found" }); return; }
-    const [employees, categories] = await Promise.all([
+    const [employees, managers, categories] = await Promise.all([
       prisma.user.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, role: true } }),
+      prisma.user.findMany({ where: MANAGER_WHERE, orderBy: { name: "asc" }, select: { id: true, name: true, role: true } }),
       prisma.category.findMany({ where: { isActive: true }, select: { id: true, name: true } }),
     ]);
-    res.json({ ok: true, data: { ticket, employees, categories } });
+    res.json({ ok: true, data: { ticket, employees, managers, categories } });
   } catch (err) { next(err); }
 });
 
@@ -108,8 +131,10 @@ router.post("/", async (req, res, next) => {
         title: d.title, description: d.description || null,
         clientId: d.clientId, categoryId: d.categoryId || null,
         templateId: d.templateId || null, assigneeId: d.assigneeId || null,
+        managerId: d.managerId || null,
         reporterId: req.user!.sub, priority: d.priority, frequency: d.frequency,
         billable: d.billable, invoiceStatus: d.invoiceStatus,
+        targetMinutes: d.targetMinutes ?? null,
         documentsRequired: d.documentsRequired || null,
         startDate: d.startDate ? new Date(d.startDate) : null,
         dueDate: d.dueDate ? new Date(d.dueDate) : null,
@@ -117,10 +142,8 @@ router.post("/", async (req, res, next) => {
         activities: { create: { type: "CREATED", actorId: req.user!.sub } },
       },
     });
-    if (d.assigneeId) {
-      const assignee = await prisma.user.findUnique({ where: { id: d.assigneeId } });
-      if (assignee) notifyTicketAssigned(ticket, assignee).catch(console.error);
-    }
+    // Notify assignee + manager + client that the ticket was created.
+    notifyTicketParticipants(ticket.id, "CREATED").catch(console.error);
     res.json({ ok: true, data: { id: ticket.id } });
   } catch (err) { next(err); }
 });
@@ -136,8 +159,9 @@ router.put("/:id", async (req, res, next) => {
       data: {
         title: d.title, description: d.description || null,
         clientId: d.clientId, categoryId: d.categoryId || null,
-        assigneeId: d.assigneeId || null, priority: d.priority,
-        billable: d.billable, invoiceStatus: d.invoiceStatus,
+        assigneeId: d.assigneeId || null, managerId: d.managerId || null,
+        priority: d.priority, billable: d.billable, invoiceStatus: d.invoiceStatus,
+        targetMinutes: d.targetMinutes != null && d.targetMinutes !== "" ? Number(d.targetMinutes) : null,
         documentsRequired: d.documentsRequired || null,
         dueDate: d.dueDate ? new Date(d.dueDate) : null,
       },
@@ -158,6 +182,8 @@ router.patch("/:id/status", async (req, res, next) => {
     const { status } = req.body as { status: TicketStatus };
     await prisma.ticket.update({ where: { id: req.params.id }, data: { status, completedAt: status === "DONE" ? new Date() : null } });
     await prisma.activityLog.create({ data: { type: "STATUS_CHANGED", actorId: req.user!.sub, ticketId: req.params.id, metadata: { status } } });
+    // On completion, notify assignee + manager + client.
+    if (status === "DONE") notifyTicketParticipants(req.params.id, "COMPLETED").catch(console.error);
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -186,13 +212,63 @@ router.patch("/:id/subtasks/:subId", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/tickets/:id/comments
-router.post("/:id/comments", async (req, res, next) => {
+// POST /api/tickets/:id/time-entries  (log time on a ticket)
+router.post("/:id/time-entries", async (req, res, next) => {
   try {
-    const { body, parentId } = req.body;
-    if (!body?.trim()) { res.status(400).json({ ok: false, error: "Comment body is required." }); return; }
-    const comment = await prisma.ticketComment.create({ data: { ticketId: req.params.id, authorId: req.user!.sub, body, parentId: parentId || null }, include: { author: true, replies: { include: { author: true } } } });
-    await prisma.activityLog.create({ data: { type: "COMMENTED", actorId: req.user!.sub, ticketId: req.params.id } });
+    const schema = z.object({
+      minutes: z.coerce.number().int().min(1, "Enter the time spent"),
+      workDate: z.string().optional(),
+      description: z.string().optional(),
+      billable: z.boolean().optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.issues[0]?.message }); return; }
+    const d = parsed.data!;
+    await prisma.timeEntry.create({
+      data: {
+        ticketId: req.params.id,
+        userId: req.user!.sub,
+        minutes: d.minutes,
+        workDate: d.workDate ? new Date(d.workDate) : new Date(),
+        description: d.description || null,
+        billable: d.billable ?? true,
+      },
+    });
+    await prisma.activityLog.create({ data: { type: "TIME_LOGGED", actorId: req.user!.sub, ticketId: req.params.id, metadata: { minutes: d.minutes } } });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// POST /api/tickets/:id/comments  (multipart: body + parentId + files[])
+router.post("/:id/comments", upload.array("files", 5), async (req, res, next) => {
+  try {
+    const body = (req.body.body ?? "").toString();
+    const parentId = req.body.parentId ? req.body.parentId.toString() : null;
+    const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+    if (!body.trim() && files.length === 0) {
+      res.status(400).json({ ok: false, error: "Add a comment or attach a file." });
+      return;
+    }
+    const comment = await prisma.ticketComment.create({
+      data: {
+        ticketId: req.params.id,
+        authorId: req.user!.sub,
+        body: body.trim() || "(attachment)",
+        parentId,
+        attachments: {
+          create: files.map((f) => ({
+            ticketId: req.params.id,
+            uploadedById: req.user!.sub,
+            fileName: f.originalname,
+            storageKey: f.filename,
+            mimeType: f.mimetype,
+            sizeBytes: f.size,
+          })),
+        },
+      },
+      include: { author: true, attachments: true, replies: { include: { author: true, attachments: true } } },
+    });
+    await prisma.activityLog.create({ data: { type: files.length ? "ATTACHMENT_ADDED" : "COMMENTED", actorId: req.user!.sub, ticketId: req.params.id } });
     res.json({ ok: true, data: comment });
   } catch (err) { next(err); }
 });

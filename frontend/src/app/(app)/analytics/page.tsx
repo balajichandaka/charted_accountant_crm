@@ -1,3 +1,4 @@
+import { format } from "date-fns";
 import { Ticket as TicketIcon, CircleCheckBig, Percent, Clock } from "lucide-react";
 import { requireCA } from "@/lib/session";
 import { getToken } from "@/lib/session";
@@ -10,21 +11,23 @@ import {
   EmployeeBarChart,
   ThroughputLineChart,
   CategoryPieChart,
+  HoursByEmployeeChart,
+  HoursPerDayChart,
 } from "@/components/charts/analytics-charts";
-
-const CHART_HEX = ["#2563eb", "#0d9488", "#d97706", "#9333ea", "#e11d48"];
 
 type AnalyticsData = {
   total: number;
   open: number;
   done30: number;
-  byStatus: Array<{ status: string; count: number }>;
-  solvedByEmployee: Array<{ name: string; solved: number }>;
-  categoryMix: Array<{ name: string; value: number }>;
-  billableMix: { billable: number; nonBillable: number };
+  byStatus: Record<string, number>;
+  solvedByEmployee: Array<{ name: string; count: number }>;
+  categoryMix: Array<{ name: string; color: string; count: number }>;
+  billableMix: Array<{ billable: string; count: number }>;
   throughput: Array<{ month: string; count: number }>;
-  topClients: Array<{ id: string; name: string; total: number; done: number }>;
-  clientHealth: Array<{ id: string; name: string; total: number; done: number }>;
+  topClients: Array<{ name: string; count: number }>;
+  clientHealth: Array<{ id: string; name: string; totalTickets: number }>;
+  hoursByEmployee: Array<{ name: string; hours: number }>;
+  hoursPerDay: Array<{ day: string; hours: number }>;
 };
 
 export default async function AnalyticsPage() {
@@ -33,50 +36,24 @@ export default async function AnalyticsPage() {
 
   const data = await apiGet<AnalyticsData>("/api/analytics", token);
 
-  const {
-    total,
-    open,
-    solvedByEmployee,
-    categoryMix,
-    billableMix,
-    throughput,
-    topClients,
-  } = data;
-
-  // Use done30 as the "completed" KPI (done in last 30 days), or fall back to total done
   const done = data.done30;
-  const completionRate = total ? Math.round((done / total) * 100) : 0;
-
-  const billableCount = billableMix.billable;
-  const nonBillableCount = billableMix.nonBillable;
+  const completionRate = data.total ? Math.round((done / data.total) * 100) : 0;
+  const billableCount = data.billableMix.find((b) => b.billable === "BILLABLE")?.count ?? 0;
+  const nonBillableCount = data.billableMix.find((b) => b.billable === "NON_BILLABLE")?.count ?? 0;
+  const totalHours = data.hoursByEmployee.reduce((s, h) => s + h.hours, 0);
 
   return (
     <>
       <PageHeader
         title="Analytics"
-        description="Productivity, throughput and client health across the practice."
+        description="Productivity, time tracking and client health across the practice."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Total tickets" value={total} icon={TicketIcon} />
-        <KpiCard
-          label="Open"
-          value={open}
-          icon={Clock}
-          accentClassName="bg-status-in-progress/15 text-status-in-progress"
-        />
-        <KpiCard
-          label="Completed"
-          value={done}
-          icon={CircleCheckBig}
-          accentClassName="bg-status-done/15 text-status-done"
-        />
-        <KpiCard
-          label="Completion rate"
-          value={`${completionRate}%`}
-          icon={Percent}
-          accentClassName="bg-chart-4/15 text-chart-4"
-        />
+        <KpiCard label="Total tickets" value={data.total} icon={TicketIcon} />
+        <KpiCard label="Open" value={data.open} icon={Clock} accentClassName="bg-status-in-progress/15 text-status-in-progress" />
+        <KpiCard label="Completed (30d)" value={done} icon={CircleCheckBig} accentClassName="bg-status-done/15 text-status-done" />
+        <KpiCard label="Completion rate" value={`${completionRate}%`} icon={Percent} accentClassName="bg-chart-4/15 text-chart-4" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -85,7 +62,7 @@ export default async function AnalyticsPage() {
             <CardTitle>Tickets solved per employee</CardTitle>
           </CardHeader>
           <CardContent>
-            <EmployeeBarChart data={solvedByEmployee} />
+            <EmployeeBarChart data={data.solvedByEmployee.map((s) => ({ name: s.name, solved: s.count }))} />
           </CardContent>
         </Card>
 
@@ -94,7 +71,33 @@ export default async function AnalyticsPage() {
             <CardTitle>Throughput (completed per month)</CardTitle>
           </CardHeader>
           <CardContent>
-            <ThroughputLineChart data={throughput} />
+            <ThroughputLineChart
+              data={data.throughput.map((t) => ({ month: format(new Date(t.month), "MMM yy"), count: t.count }))}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Time & productivity */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Hours logged per employee</span>
+              <span className="text-sm font-normal text-muted-foreground tabular">{totalHours} h total</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HoursByEmployeeChart data={data.hoursByEmployee} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Hours per day (last 30 days)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HoursPerDayChart
+              data={data.hoursPerDay.map((h) => ({ day: format(new Date(h.day), "dd MMM"), hours: h.hours }))}
+            />
           </CardContent>
         </Card>
 
@@ -104,16 +107,13 @@ export default async function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 items-center gap-2">
-              <CategoryPieChart data={categoryMix} />
+              <CategoryPieChart data={data.categoryMix.map((c) => ({ name: c.name, value: c.count }))} />
               <ul className="space-y-1.5">
-                {categoryMix.map((c, i) => (
+                {data.categoryMix.map((c) => (
                   <li key={c.name} className="flex items-center gap-2 text-sm">
-                    <span
-                      className="size-2.5 rounded-full"
-                      style={{ backgroundColor: CHART_HEX[i % CHART_HEX.length] }}
-                    />
+                    <span className="size-2.5 rounded-full" style={{ backgroundColor: c.color }} />
                     <span className="flex-1 truncate">{c.name}</span>
-                    <span className="tabular text-muted-foreground">{c.value}</span>
+                    <span className="tabular text-muted-foreground">{c.count}</span>
                   </li>
                 ))}
               </ul>
@@ -123,7 +123,7 @@ export default async function AnalyticsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Billable mix & client health</CardTitle>
+            <CardTitle>Billable mix & top clients</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex gap-3">
@@ -133,26 +133,14 @@ export default async function AnalyticsPage() {
               </div>
               <div className="flex-1 rounded-lg border p-4">
                 <p className="text-sm text-muted-foreground">Non-billable</p>
-                <p className="text-2xl font-semibold tabular">
-                  {nonBillableCount}
-                </p>
+                <p className="text-2xl font-semibold tabular">{nonBillableCount}</p>
               </div>
             </div>
             <div className="space-y-1.5">
-              {topClients.map((c) => (
-                <div
-                  key={c.id}
-                  className="flex items-center justify-between text-sm"
-                >
+              {data.topClients.map((c) => (
+                <div key={c.name} className="flex items-center justify-between text-sm">
                   <span className="truncate">{c.name}</span>
-                  <span className="flex items-center gap-2">
-                    <Badge variant="secondary" className="tabular">
-                      {c.total} total
-                    </Badge>
-                    <Badge variant="outline" className="tabular">
-                      {c.done} done
-                    </Badge>
-                  </span>
+                  <Badge variant="secondary" className="tabular">{c.count} open</Badge>
                 </div>
               ))}
             </div>

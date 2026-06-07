@@ -57,11 +57,13 @@ export function TicketCreateForm({
   templates,
   clients,
   employees,
+  managers,
 }: {
   categories: { id: string; name: string }[];
   templates: TemplateOption[];
   clients: { id: string; name: string }[];
   employees: { id: string; name: string }[];
+  managers: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const {
@@ -79,9 +81,11 @@ export function TicketCreateForm({
       templateId: "",
       categoryId: "",
       assigneeId: "",
+      managerId: "",
       priority: "MEDIUM",
       frequency: "ONE_TIME",
       billable: "BILLABLE",
+      targetHours: undefined,
       description: "",
       documentsRequired: "",
       startDate: "",
@@ -232,6 +236,34 @@ export function TicketCreateForm({
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Manager</Label>
+                <Select
+                  value={watch("managerId") || undefined}
+                  onValueChange={(v) => setValue("managerId", v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="No manager" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {managers.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Target hours</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  placeholder="e.g. 8"
+                  {...register("targetHours")}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Priority</Label>
