@@ -1,3 +1,6 @@
+# Local development only. Production: backend → Render, frontend → Vercel.
+# Copy backend/.env.example → backend/.env and frontend/.env.example → frontend/.env
+
 services:
   db:
     image: postgres:16
@@ -21,24 +24,13 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
+    env_file:
+      - ./backend/.env
     environment:
-      DATABASE_URL: "postgresql://ca:ca_password@db:5432/ca_app?schema=public"
-      JWT_SECRET: "iSXPhZRT+rGUrCkGLCzc8pct7qUYmqP0HCMGZN7sYB0="
-      CRON_SECRET: "c0f487898ec28560067581803057de60"
-      SMTP_HOST: "smtp.gmail.com"
-      SMTP_PORT: "587"
-      SMTP_SECURE: "false"
-      SMTP_USER: "srirampadalas@gmail.com"
-      SMTP_PASS: "hjkitxscubasbygg"
-      EMAIL_FROM: "CA Practice <srirampadalas@gmail.com>"
-      APP_URL: "http://localhost:3000"
-      FRONTEND_URL: "http://localhost:3000"
       PORT: "4000"
       UPLOAD_DIR: "/app/uploads"
-      NODE_ENV: "production"
+      NODE_ENV: production
+      SEED_DB: "true"
     ports:
       - "4000:4000"
     volumes:
@@ -57,12 +49,13 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    env_file:
+      - ./frontend/.env
     environment:
+      # Server-side API calls from the frontend container use the compose network.
       BACKEND_URL: "http://backend:4000"
-      AUTH_SECRET: "iSXPhZRT+rGUrCkGLCzc8pct7qUYmqP0HCMGZN7sYB0="
       AUTH_TRUST_HOST: "true"
-      APP_URL: "http://localhost:3000"
-      NODE_ENV: "production"
+      NODE_ENV: production
     ports:
       - "3000:3000"
 
