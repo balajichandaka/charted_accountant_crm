@@ -5,7 +5,7 @@ const EXPIRES_IN = "7d";
 
 export type JwtPayload = {
   sub: string;
-  role: "CA" | "EMPLOYEE";
+  role: "CA" | "MANAGER" | "EMPLOYEE";
   name: string;
   email: string;
 };

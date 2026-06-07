@@ -24,13 +24,14 @@ type NewTicketFormData = {
   templates: Template[];
   clients: Array<{ id: string; name: string }>;
   employees: Array<{ id: string; name: string }>;
+  managers: Array<{ id: string; name: string }>;
 };
 
 export default async function NewTicketPage() {
   await requireUser();
   const token = await getToken();
 
-  const { categories, templates, clients, employees } =
+  const { categories, templates, clients, employees, managers } =
     await apiGet<NewTicketFormData>("/api/tickets/new-form", token);
 
   return (
@@ -69,6 +70,7 @@ export default async function NewTicketPage() {
           }))}
           clients={clients}
           employees={employees}
+          managers={managers}
         />
       )}
     </>

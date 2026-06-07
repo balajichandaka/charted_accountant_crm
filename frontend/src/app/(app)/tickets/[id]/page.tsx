@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format, formatDistanceToNow } from "date-fns";
-import { ArrowLeft, FileText, Activity as ActivityIcon } from "lucide-react";
+import { ArrowLeft, FileText, Activity as ActivityIcon, Clock } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { getToken } from "@/lib/session";
 import { apiGet } from "@/lib/api";
@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/page-header";
 import { StatusBadge, PriorityBadge } from "@/components/status-badge";
 import { StatusSelect, AssigneeSelect } from "@/components/tickets/ticket-controls";
 import { TicketSubtasks } from "@/components/tickets/ticket-subtasks";
+import { TicketTimeLog } from "@/components/tickets/ticket-time-log";
 import {
   TicketComments,
   type CommentNode,
@@ -62,12 +63,20 @@ function Detail({
   );
 }
 
+type RawAttachment = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+};
+
 type RawComment = {
   id: string;
   body: string;
   parentId: string | null;
   createdAt: string;
   author: { name: string };
+  attachments: RawAttachment[];
 };
 
 type Ticket = {
@@ -79,16 +88,19 @@ type Ticket = {
   frequency: string;
   billable: string;
   invoiceStatus: string;
+  targetMinutes: number | null;
   description: string | null;
   documentsRequired: string | null;
   startDate: string | null;
   dueDate: string | null;
   categoryId: string | null;
   assigneeId: string | null;
+  managerId: string | null;
   clientId: string;
   client: { id: string; name: string };
   category: { name: string } | null;
   assignee: { id: string; name: string } | null;
+  manager: { id: string; name: string } | null;
   reporter: { name: string };
   subtasks: Array<{
     id: string;
@@ -97,6 +109,13 @@ type Ticket = {
     assignee: { name: string } | null;
   }>;
   comments: RawComment[];
+  timeEntries: Array<{
+    id: string;
+    minutes: number;
+    description: string | null;
+    workDate: string;
+    user: { name: string } | null;
+  }>;
   activities: Array<{
     id: string;
     type: ActivityType;
@@ -109,6 +128,7 @@ type Ticket = {
 type TicketDetailData = {
   ticket: Ticket;
   employees: Array<{ id: string; name: string }>;
+  managers: Array<{ id: string; name: string }>;
   categories: Array<{ id: string; name: string }>;
 };
 
@@ -128,7 +148,7 @@ export default async function TicketDetailPage({
     notFound();
   }
 
-  const { ticket, employees, categories } = data;
+  const { ticket, employees, managers, categories } = data;
 
   // Build comment tree (one level of replies)
   const byId = new Map<string, CommentNode>();
@@ -139,6 +159,7 @@ export default async function TicketDetailPage({
       body: c.body,
       authorName: c.author.name,
       createdAt: c.createdAt,
+      attachments: c.attachments ?? [],
       replies: [],
     });
   }
@@ -165,15 +186,18 @@ export default async function TicketDetailPage({
         <TicketEditDialog
           categories={categories}
           employees={employees}
+          managers={managers}
           ticket={{
             id: ticket.id,
             title: ticket.title,
             categoryId: ticket.categoryId ?? "",
             assigneeId: ticket.assigneeId ?? "",
+            managerId: ticket.managerId ?? "",
             priority: ticket.priority as Parameters<typeof TicketEditDialog>[0]["ticket"]["priority"],
             frequency: ticket.frequency as Parameters<typeof TicketEditDialog>[0]["ticket"]["frequency"],
             billable: ticket.billable as Parameters<typeof TicketEditDialog>[0]["ticket"]["billable"],
             invoiceStatus: ticket.invoiceStatus as Parameters<typeof TicketEditDialog>[0]["ticket"]["invoiceStatus"],
+            targetHours: ticket.targetMinutes != null ? ticket.targetMinutes / 60 : undefined,
             description: ticket.description ?? "",
             documentsRequired: ticket.documentsRequired ?? "",
             startDate: ticket.startDate
@@ -205,12 +229,29 @@ export default async function TicketDetailPage({
             </CardHeader>
             <CardContent>
               <TicketSubtasks
+                ticketId={ticket.id}
                 subtasks={ticket.subtasks.map((s) => ({
                   id: s.id,
                   title: s.title,
                   status: s.status as Parameters<typeof TicketSubtasks>[0]["subtasks"][0]["status"],
                   assignee: s.assignee ? { name: s.assignee.name } : null,
                 }))}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="size-4 text-muted-foreground" />
+                Time tracking
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TicketTimeLog
+                ticketId={ticket.id}
+                targetMinutes={ticket.targetMinutes}
+                entries={ticket.timeEntries}
               />
             </CardContent>
           </Card>
@@ -244,6 +285,16 @@ export default async function TicketDetailPage({
                     assigneeId={ticket.assigneeId}
                     employees={employees}
                   />
+                </Detail>
+                <Detail label="Manager">
+                  {ticket.manager?.name ?? (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </Detail>
+                <Detail label="Target">
+                  {ticket.targetMinutes != null
+                    ? `${(ticket.targetMinutes / 60).toFixed(1)} hrs`
+                    : "—"}
                 </Detail>
                 <Detail label="Client">
                   <Link

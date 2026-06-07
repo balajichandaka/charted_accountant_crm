@@ -39,7 +39,7 @@ type Emp = {
   id: string;
   name: string;
   email: string;
-  role: "CA" | "EMPLOYEE";
+  role: "CA" | "MANAGER" | "EMPLOYEE";
   isActive: boolean;
   openTickets: number;
 };
@@ -130,13 +130,14 @@ function EmployeeDialog({
             <Label>Role</Label>
             <Select
               value={watch("role")}
-              onValueChange={(v) => setValue("role", v as "CA" | "EMPLOYEE")}
+              onValueChange={(v) => setValue("role", v as "CA" | "MANAGER" | "EMPLOYEE")}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="EMPLOYEE">Employee</SelectItem>
+                <SelectItem value="MANAGER">Manager</SelectItem>
                 <SelectItem value="CA">CA (Administrator)</SelectItem>
               </SelectContent>
             </Select>
@@ -212,8 +213,8 @@ export function EmployeeManager({ employees }: { employees: Emp[] }) {
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-2 font-medium">
                 {e.name}
-                <Badge variant={e.role === "CA" ? "default" : "secondary"}>
-                  {e.role === "CA" ? "CA" : "Employee"}
+                <Badge variant={e.role === "CA" ? "default" : e.role === "MANAGER" ? "outline" : "secondary"}>
+                  {e.role === "CA" ? "CA" : e.role === "MANAGER" ? "Manager" : "Employee"}
                 </Badge>
                 {!e.isActive ? (
                   <Badge variant="outline" className="text-muted-foreground">

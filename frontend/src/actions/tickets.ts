@@ -2,16 +2,27 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser, getToken } from "@/lib/session";
-import { apiMutate } from "@/lib/api";
+import { apiMutate, apiUpload } from "@/lib/api";
 import type { ActionResult } from "@/lib/action-result";
 import type { TicketStatus } from "@/types/domain";
+
+// The forms collect `targetHours`; the API stores `targetMinutes`.
+function withTargetMinutes(input: unknown): Record<string, unknown> {
+  const obj = { ...(input as Record<string, unknown>) };
+  const hours = obj.targetHours;
+  if (hours !== undefined && hours !== null && hours !== "") {
+    obj.targetMinutes = Math.round(Number(hours) * 60);
+  }
+  delete obj.targetHours;
+  return obj;
+}
 
 export async function createTicket(
   input: unknown
 ): Promise<ActionResult<{ id: string }>> {
   await requireUser();
   const token = await getToken();
-  const result = await apiMutate<{ id: string }>("POST", "/api/tickets", input, token);
+  const result = await apiMutate<{ id: string }>("POST", "/api/tickets", withTargetMinutes(input), token);
   if (result.ok) {
     revalidatePath("/tickets");
     revalidatePath("/tickets/board");
@@ -27,7 +38,7 @@ export async function updateTicket(
 ): Promise<ActionResult> {
   await requireUser();
   const token = await getToken();
-  const result = await apiMutate("PUT", `/api/tickets/${id}`, input, token);
+  const result = await apiMutate("PUT", `/api/tickets/${id}`, withTargetMinutes(input), token);
   if (result.ok) {
     revalidatePath("/tickets");
     revalidatePath("/tickets/board");
@@ -73,38 +84,47 @@ export async function assignTicket(
 }
 
 export async function toggleSubtask(
+  ticketId: string,
   subtaskId: string,
   done: boolean
 ): Promise<ActionResult> {
   await requireUser();
   const token = await getToken();
-  // The ticket ID is not available here at the action level; the backend
-  // returns it so we can revalidate the correct path.
-  const result = await apiMutate<{ ticketId: string }>(
+  const result = await apiMutate(
     "PATCH",
-    `/api/tickets/subtasks/${subtaskId}`,
-    { done },
+    `/api/tickets/${ticketId}/subtasks/${subtaskId}`,
+    { status: done ? "DONE" : "TODO" },
     token
   );
-  if (result.ok && result.data?.ticketId) {
-    revalidatePath(`/tickets/${result.data.ticketId}`);
-  }
+  if (result.ok) revalidatePath(`/tickets/${ticketId}`);
   return result.ok
     ? { ok: true }
     : { ok: false, error: result.error };
 }
 
-export async function addComment(
+export async function logTime(
   ticketId: string,
-  body: string,
-  parentId?: string
+  input: { minutes: number; workDate?: string; description?: string; billable?: boolean }
 ): Promise<ActionResult> {
   await requireUser();
   const token = await getToken();
-  const result = await apiMutate(
-    "POST",
+  const result = await apiMutate("POST", `/api/tickets/${ticketId}/time-entries`, input, token);
+  if (result.ok) revalidatePath(`/tickets/${ticketId}`);
+  return result.ok
+    ? { ok: true }
+    : { ok: false, error: result.error };
+}
+
+// Add a comment, optionally with file attachments (multipart).
+export async function addComment(
+  ticketId: string,
+  formData: FormData
+): Promise<ActionResult> {
+  await requireUser();
+  const token = await getToken();
+  const result = await apiUpload(
     `/api/tickets/${ticketId}/comments`,
-    { body, parentId: parentId ?? null },
+    formData,
     token
   );
   if (result.ok) revalidatePath(`/tickets/${ticketId}`);
