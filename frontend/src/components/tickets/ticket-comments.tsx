@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { Loader2, Paperclip, X, FileText, Download } from "lucide-react";
 import { toast } from "sonner";
-import { addComment } from "@/actions/tickets";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -95,13 +94,29 @@ function CommentForm({
       fd.append("body", body);
       if (parentId) fd.append("parentId", parentId);
       files.forEach((f) => fd.append("files", f));
-      const res = await addComment(ticketId, fd);
-      if (res.ok) {
+
+      let ok = false;
+      let error = "Upload failed";
+      try {
+        const res = await fetch(`/api/comments/${ticketId}`, {
+          method: "POST",
+          body: fd,
+        });
+        const json = await res.json();
+        ok = !!json.ok;
+        if (!ok) error = json.error ?? error;
+      } catch (e) {
+        error = e instanceof Error ? e.message : "Network error";
+      }
+
+      if (ok) {
         setBody("");
         setFiles([]);
         onDone?.();
         router.refresh();
-      } else toast.error(res.error);
+      } else {
+        toast.error(error);
+      }
     });
   }
 

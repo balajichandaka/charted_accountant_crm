@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -30,12 +31,31 @@ export function TicketFilters({
   const pathname = usePathname();
   const params = useSearchParams();
 
+  const [search, setSearch] = useState(params.get("q") ?? "");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   function setParam(key: string, value: string | null) {
     const next = new URLSearchParams(params.toString());
     if (!value || value === ALL) next.delete(key);
     else next.set(key, value);
     router.push(`${pathname}?${next.toString()}`);
   }
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setParam("q", search || null);
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  // Keep local state in sync when URL is cleared externally (e.g. "Clear" button)
+  useEffect(() => {
+    setSearch(params.get("q") ?? "");
+  }, [params]);
 
   const hasFilters = ["status", "assigneeId", "clientId", "categoryId", "priority", "q"].some(
     (k) => params.get(k)
@@ -46,12 +66,10 @@ export function TicketFilters({
       <div className="relative min-w-48 flex-1">
         <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          defaultValue={params.get("q") ?? ""}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
           placeholder="Search title…"
           className="pl-8"
-          onKeyDown={(e) => {
-            if (e.key === "Enter") setParam("q", (e.target as HTMLInputElement).value);
-          }}
         />
       </div>
 

@@ -45,7 +45,7 @@ export default async function TicketsPage({
   if (sp.assigneeId) params.assigneeId = sp.assigneeId;
   if (sp.clientId) params.clientId = sp.clientId;
   if (sp.categoryId) params.categoryId = sp.categoryId;
-  if (sp.q) params.q = sp.q;
+  if (sp.q) params.search = sp.q;
 
   const queryString = new URLSearchParams(params).toString();
   const path = queryString ? `/api/tickets?${queryString}` : "/api/tickets";
