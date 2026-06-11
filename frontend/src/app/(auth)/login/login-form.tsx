@@ -29,7 +29,8 @@ export function LoginForm() {
           id="email"
           name="email"
           type="email"
-          placeholder="you@firm.test"
+          placeholder="ca@firm.test"
+          defaultValue="ca@firm.test"
           autoComplete="email"
           required
         />
@@ -40,6 +41,7 @@ export function LoginForm() {
           id="password"
           name="password"
           type="password"
+          defaultValue="password123"
           autoComplete="current-password"
           required
         />
