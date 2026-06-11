@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -66,6 +67,7 @@ export function TicketCreateForm({
   managers: { id: string; name: string }[];
 }) {
   const router = useRouter();
+  const [isCreating, setIsCreating] = useState(false);
   const {
     register,
     handleSubmit,
@@ -101,6 +103,9 @@ export function TicketCreateForm({
 
   const selectedTemplateId = watch("templateId");
   const selectedCategory = watch("categoryId");
+  const selectedClientId = watch("clientId");
+  const selectedAssigneeId = watch("assigneeId");
+  const selectedManagerId = watch("managerId");
 
   const visibleTemplates = selectedCategory
     ? templates.filter((t) => t.categoryId === selectedCategory)
@@ -120,17 +125,26 @@ export function TicketCreateForm({
   }
 
   async function onSubmit(values: CreateTicketFormValues) {
+    if (isCreating) return;
+    setIsCreating(true);
+
     const res = await createTicket(values);
     if (res.ok && res.data) {
       toast.success("Ticket created");
-      router.push(`/tickets/${res.data.id}`);
-    } else if (!res.ok) {
+      router.replace(`/tickets/${res.data.id}`);
+      return;
+    }
+    if (!res.ok) {
       toast.error(res.error);
     }
+    setIsCreating(false);
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="grid gap-6 lg:grid-cols-5">
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="grid gap-6 lg:grid-cols-5"
+    >
       <div className="space-y-6 lg:col-span-3">
         <Card>
           <CardHeader>
@@ -146,7 +160,7 @@ export function TicketCreateForm({
             <div className="space-y-1.5">
               <Label>Category</Label>
               <Select
-                value={selectedCategory || undefined}
+                value={selectedCategory}
                 onValueChange={(v) => setValue("categoryId", v)}
               >
                 <SelectTrigger>
@@ -164,7 +178,7 @@ export function TicketCreateForm({
             <div className="space-y-1.5">
               <Label>Work template</Label>
               <Select
-                value={selectedTemplateId || undefined}
+                value={selectedTemplateId}
                 onValueChange={applyTemplate}
               >
                 <SelectTrigger>
@@ -199,7 +213,7 @@ export function TicketCreateForm({
               <div className="space-y-1.5">
                 <Label>Client *</Label>
                 <Select
-                  value={watch("clientId") || undefined}
+                  value={selectedClientId}
                   onValueChange={(v) => setValue("clientId", v)}
                 >
                   <SelectTrigger>
@@ -222,7 +236,7 @@ export function TicketCreateForm({
               <div className="space-y-1.5">
                 <Label>Assign to</Label>
                 <Select
-                  value={watch("assigneeId") || undefined}
+                  value={selectedAssigneeId}
                   onValueChange={(v) => setValue("assigneeId", v)}
                 >
                   <SelectTrigger>
@@ -240,7 +254,7 @@ export function TicketCreateForm({
               <div className="space-y-1.5">
                 <Label>Manager</Label>
                 <Select
-                  value={watch("managerId") || undefined}
+                  value={selectedManagerId}
                   onValueChange={(v) => setValue("managerId", v)}
                 >
                   <SelectTrigger>
@@ -395,8 +409,10 @@ export function TicketCreateForm({
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
+          <Button type="submit" disabled={isSubmitting || isCreating}>
+            {isSubmitting || isCreating ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : null}
             Create ticket
           </Button>
         </div>

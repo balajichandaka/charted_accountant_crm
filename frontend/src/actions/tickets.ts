@@ -17,12 +17,30 @@ function withTargetMinutes(input: unknown): Record<string, unknown> {
   return obj;
 }
 
+function toCreateTicketPayload(input: unknown): Record<string, unknown> {
+  const obj = withTargetMinutes(input);
+  if (Array.isArray(obj.subtasks)) {
+    obj.subtasks = obj.subtasks
+      .filter(
+        (s): s is { title: string } =>
+          typeof s === "object" && s !== null && "title" in s
+      )
+      .map((s, order) => ({ title: String(s.title).trim(), order }));
+  }
+  return obj;
+}
+
 export async function createTicket(
   input: unknown
 ): Promise<ActionResult<{ id: string }>> {
   await requireUser();
   const token = await getToken();
-  const result = await apiMutate<{ id: string }>("POST", "/api/tickets", withTargetMinutes(input), token);
+  const result = await apiMutate<{ id: string }>(
+    "POST",
+    "/api/tickets",
+    toCreateTicketPayload(input),
+    token
+  );
   if (result.ok) {
     revalidatePath("/tickets");
     revalidatePath("/tickets/board");
