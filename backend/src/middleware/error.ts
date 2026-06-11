@@ -9,5 +9,4 @@ export function errorHandler(
   const message = err instanceof Error ? err.message : "Internal server error";
   console.error("[error]", err);
   res.status(500).json({ ok: false, error: message });
-  
 }
