@@ -1,20 +1,27 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
-import { Loader2 } from "lucide-react";
+import { Loader2, Paperclip, X, FileText, Download } from "lucide-react";
 import { toast } from "sonner";
-import { addComment } from "@/actions/tickets";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+
+export type CommentAttachment = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+};
 
 export type CommentNode = {
   id: string;
   body: string;
   authorName: string;
   createdAt: string;
+  attachments: CommentAttachment[];
   replies: CommentNode[];
 };
 
@@ -26,6 +33,41 @@ function initials(name: string) {
     .slice(0, 2)
     .join("")
     .toUpperCase();
+}
+
+function formatSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function AttachmentView({ att }: { att: CommentAttachment }) {
+  const url = `/api/files/${att.id}`;
+  if (att.mimeType.startsWith("image/")) {
+    return (
+      <a href={url} target="_blank" rel="noreferrer" className="block">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={url}
+          alt={att.fileName}
+          className="max-h-48 rounded-md border object-cover"
+        />
+      </a>
+    );
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm hover:bg-muted"
+    >
+      <FileText className="size-4 text-muted-foreground" />
+      <span className="max-w-[180px] truncate">{att.fileName}</span>
+      <span className="text-xs text-muted-foreground">{formatSize(att.sizeBytes)}</span>
+      <Download className="size-3.5 text-muted-foreground" />
+    </a>
+  );
 }
 
 function CommentForm({
@@ -41,17 +83,40 @@ function CommentForm({
 }) {
   const router = useRouter();
   const [body, setBody] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [pending, start] = useTransition();
 
   function submit() {
-    if (!body.trim()) return;
+    if (!body.trim() && files.length === 0) return;
     start(async () => {
-      const res = await addComment(ticketId, body, parentId);
-      if (res.ok) {
+      const fd = new FormData();
+      fd.append("body", body);
+      if (parentId) fd.append("parentId", parentId);
+      files.forEach((f) => fd.append("files", f));
+
+      let ok = false;
+      let error = "Upload failed";
+      try {
+        const res = await fetch(`/api/comments/${ticketId}`, {
+          method: "POST",
+          body: fd,
+        });
+        const json = await res.json();
+        ok = !!json.ok;
+        if (!ok) error = json.error ?? error;
+      } catch (e) {
+        error = e instanceof Error ? e.message : "Network error";
+      }
+
+      if (ok) {
         setBody("");
+        setFiles([]);
         onDone?.();
         router.refresh();
-      } else toast.error(res.error);
+      } else {
+        toast.error(error);
+      }
     });
   }
 
@@ -63,13 +128,57 @@ function CommentForm({
         onChange={(e) => setBody(e.target.value)}
         placeholder={parentId ? "Write a reply…" : "Add a comment…"}
       />
-      <div className="flex justify-end gap-2">
+      {files.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {files.map((f, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1.5 rounded-full border bg-muted px-2.5 py-1 text-xs"
+            >
+              <Paperclip className="size-3" />
+              <span className="max-w-[140px] truncate">{f.name}</span>
+              <button
+                type="button"
+                onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
+              >
+                <X className="size-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <input
+        ref={fileRef}
+        type="file"
+        multiple
+        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+        className="hidden"
+        onChange={(e) => {
+          const picked = Array.from(e.target.files ?? []);
+          setFiles((prev) => [...prev, ...picked].slice(0, 5));
+          if (fileRef.current) fileRef.current.value = "";
+        }}
+      />
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => fileRef.current?.click()}
+        >
+          <Paperclip className="size-4" />
+          Attach
+        </Button>
         {onDone ? (
           <Button variant="ghost" size="sm" onClick={onDone}>
             Cancel
           </Button>
         ) : null}
-        <Button size="sm" onClick={submit} disabled={pending || !body.trim()}>
+        <Button
+          size="sm"
+          onClick={submit}
+          disabled={pending || (!body.trim() && files.length === 0)}
+        >
           {pending ? <Loader2 className="size-4 animate-spin" /> : null}
           {parentId ? "Reply" : "Comment"}
         </Button>
@@ -102,6 +211,13 @@ function CommentItem({
             </span>
           </div>
           <p className="whitespace-pre-wrap text-sm">{node.body}</p>
+          {node.attachments.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {node.attachments.map((a) => (
+                <AttachmentView key={a.id} att={a} />
+              ))}
+            </div>
+          ) : null}
         </div>
         <button
           onClick={() => setReplying((r) => !r)}
