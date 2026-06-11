@@ -16,6 +16,7 @@ const INVOICE_NOTE = ["NOT_APPLICABLE", "PENDING", "ISSUED"] as const;
 const optionalText = z.string().trim().optional().or(z.literal(""));
 const optionalId = z.string().optional().or(z.literal(""));
 const optionalDate = z.string().optional().or(z.literal("")); // "yyyy-mm-dd"
+const optionalHours = z.coerce.number().min(0).max(10000).optional();
 
 export const createTicketSchema = z.object({
   title: z.string().trim().min(1, "Title is required"),
@@ -23,9 +24,11 @@ export const createTicketSchema = z.object({
   templateId: optionalId,
   categoryId: optionalId,
   assigneeId: optionalId,
+  managerId: optionalId,
   priority: z.enum(PRIORITY),
   frequency: z.enum(FREQ),
   billable: z.enum(BILLABLE),
+  targetHours: optionalHours,
   description: optionalText,
   documentsRequired: optionalText,
   startDate: optionalDate,
@@ -40,10 +43,12 @@ export const updateTicketSchema = z.object({
   title: z.string().trim().min(1, "Title is required"),
   categoryId: optionalId,
   assigneeId: optionalId,
+  managerId: optionalId,
   priority: z.enum(PRIORITY),
   frequency: z.enum(FREQ),
   billable: z.enum(BILLABLE),
   invoiceStatus: z.enum(INVOICE_NOTE),
+  targetHours: optionalHours,
   description: optionalText,
   documentsRequired: optionalText,
   startDate: optionalDate,

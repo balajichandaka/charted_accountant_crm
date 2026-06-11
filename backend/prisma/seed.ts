@@ -63,6 +63,14 @@ async function main() {
       role: Role.EMPLOYEE,
     },
   });
+  const meena = await prisma.user.create({
+    data: {
+      name: "Meena Iyer (Manager)",
+      email: "meena@firm.test",
+      passwordHash,
+      role: Role.MANAGER,
+    },
+  });
 
   // --- Categories ---
   const categories: Record<string, string> = {};
@@ -190,6 +198,9 @@ async function main() {
     doneSubtasks?: number; // first N subtasks marked DONE
     daysFromNowDue?: number;
     completed?: boolean;
+    managerId?: string;
+    targetHours?: number;
+    loggedMinutes?: number; // total time logged by the assignee
   }) {
     const {
       template,
@@ -199,6 +210,9 @@ async function main() {
       doneSubtasks = 0,
       daysFromNowDue,
       completed,
+      managerId,
+      targetHours,
+      loggedMinutes,
     } = opts;
     const due =
       daysFromNowDue != null
@@ -212,10 +226,12 @@ async function main() {
         frequency: template.defaultFrequency,
         documentsRequired: template.documentsRequired,
         billable: template.defaultBillable,
+        targetMinutes: targetHours != null ? targetHours * 60 : null,
         clientId,
         categoryId: template.categoryId,
         templateId: template.id,
         assigneeId,
+        managerId: managerId ?? null,
         reporterId: ca.id,
         startDate: new Date(Date.now() - 5 * 86400000),
         dueDate: due,
@@ -228,6 +244,14 @@ async function main() {
             completedAt: i < doneSubtasks ? new Date() : null,
           })),
         },
+        timeEntries: loggedMinutes
+          ? {
+              create: [
+                { userId: assigneeId, minutes: Math.round(loggedMinutes * 0.6), workDate: new Date(Date.now() - 86400000), description: "Initial work" },
+                { userId: assigneeId, minutes: Math.round(loggedMinutes * 0.4), workDate: new Date(), description: "Follow-up" },
+              ],
+            }
+          : undefined,
         activities: {
           create: { type: ActivityType.CREATED, actorId: ca.id },
         },
@@ -240,16 +264,22 @@ async function main() {
     template: incorporation,
     clientId: acme.id,
     assigneeId: priya.id,
+    managerId: meena.id,
     status: TicketStatus.IN_PROGRESS,
     doneSubtasks: 2,
     daysFromNowDue: 6,
+    targetHours: 12,
+    loggedMinutes: 320,
   });
   await createTicketFromTemplate({
     template: gstFiling,
     clientId: nova.id,
     assigneeId: rahul.id,
+    managerId: meena.id,
     status: TicketStatus.OPEN,
     daysFromNowDue: 3,
+    targetHours: 6,
+    loggedMinutes: 90,
   });
   await createTicketFromTemplate({
     template: gstFiling,
@@ -258,14 +288,19 @@ async function main() {
     status: TicketStatus.REVIEW,
     doneSubtasks: 4,
     daysFromNowDue: 1,
+    targetHours: 6,
+    loggedMinutes: 240,
   });
   await createTicketFromTemplate({
     template: itr,
     clientId: acme.id,
     assigneeId: rahul.id,
+    managerId: meena.id,
     status: TicketStatus.DONE,
     doneSubtasks: 5,
     completed: true,
+    targetHours: 8,
+    loggedMinutes: 460,
   });
   await createTicketFromTemplate({
     template: itr,
@@ -274,6 +309,8 @@ async function main() {
     status: TicketStatus.DONE,
     doneSubtasks: 5,
     completed: true,
+    targetHours: 8,
+    loggedMinutes: 410,
   });
   await createTicketFromTemplate({
     template: incorporation,
@@ -301,6 +338,7 @@ async function main() {
   console.log(`  Login: ca@firm.test / ${DEMO_PASSWORD} (CA)`);
   console.log(`         priya@firm.test / ${DEMO_PASSWORD} (Employee)`);
   console.log(`         rahul@firm.test / ${DEMO_PASSWORD} (Employee)`);
+  console.log(`         meena@firm.test / ${DEMO_PASSWORD} (Manager)`);
 }
 
 main()

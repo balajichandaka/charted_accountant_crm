@@ -15,7 +15,13 @@ type Subtask = {
   assignee?: { name: string } | null;
 };
 
-export function TicketSubtasks({ subtasks }: { subtasks: Subtask[] }) {
+export function TicketSubtasks({
+  ticketId,
+  subtasks,
+}: {
+  ticketId: string;
+  subtasks: Subtask[];
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -54,7 +60,7 @@ export function TicketSubtasks({ subtasks }: { subtasks: Subtask[] }) {
                 disabled={pending}
                 onCheckedChange={(v) =>
                   start(async () => {
-                    const res = await toggleSubtask(s.id, Boolean(v));
+                    const res = await toggleSubtask(ticketId, s.id, Boolean(v));
                     if (res.ok) router.refresh();
                     else toast.error(res.error);
                   })

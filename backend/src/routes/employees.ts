@@ -12,7 +12,7 @@ const OPEN = ["OPEN", "IN_PROGRESS", "REVIEW", "BLOCKED"] as const;
 const employeeSchema = z.object({
   name: z.string().trim().min(1),
   email: z.string().trim().email(),
-  role: z.enum(["CA", "EMPLOYEE"]),
+  role: z.enum(["CA", "MANAGER", "EMPLOYEE"]),
   password: z.string().min(8).optional().or(z.literal("")),
 });
 
