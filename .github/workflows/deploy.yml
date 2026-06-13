@@ -41,16 +41,7 @@ jobs:
           script: |
             set -euo pipefail
             APP_DIR="${{ secrets.EC2_APP_DIR }}"
-            if [ -z "${APP_DIR}" ]; then
-              APP_DIR="$HOME/charted_accountant_crm"
-            else
-              APP_DIR="${APP_DIR/#\~/$HOME}"
-            fi
-            if [ ! -d "$APP_DIR" ]; then
-              echo "App directory not found: $APP_DIR"
-              echo "Clone the repo on EC2 or fix EC2_APP_DIR (use /home/ec2-user/charted_accountant_crm, not ~/...)"
-              exit 1
-            fi
+            if [ -z "${APP_DIR}" ]; then APP_DIR="$HOME/charted_accountant_crm"; fi
             cd "$APP_DIR"
             chmod +x scripts/deploy-ec2.sh scripts/compose.sh
             DEPLOY_BRANCH="${{ env.DEPLOY_BRANCH }}" APP_DIR="$APP_DIR" ./scripts/deploy-ec2.sh

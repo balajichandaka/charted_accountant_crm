@@ -18,7 +18,7 @@ Go to **GitHub repo → Settings → Secrets and variables → Actions → New r
 | `EC2_HOST` | EC2 public IP or domain | `34.236.143.82` |
 | `EC2_USER` | SSH user | `ec2-user` |
 | `EC2_SSH_KEY` | Full contents of your `.pem` private key | `-----BEGIN RSA PRIVATE KEY-----...` |
-| `EC2_APP_DIR` | Optional app path on EC2 — use `/home/ec2-user/charted_accountant_crm` (not `~/...`) or leave empty |
+| `EC2_APP_DIR` | Optional app path on EC2 | `~/charted_accountant_crm` |
 
 To copy the PEM key:
 
