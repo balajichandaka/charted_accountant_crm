@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -31,8 +31,9 @@ export function TicketFilters({
   const pathname = usePathname();
   const params = useSearchParams();
 
-  const [search, setSearch] = useState(params.get("q") ?? "");
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const urlQ = params.get("q") ?? "";
+  const [draft, setDraft] = useState<string | null>(null);
+  const search = draft !== null && draft !== urlQ ? draft : urlQ;
 
   function setParam(key: string, value: string | null) {
     const next = new URLSearchParams(params.toString());
@@ -42,20 +43,11 @@ export function TicketFilters({
   }
 
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setParam("q", search || null);
-    }, 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+    if (draft === null || draft === urlQ) return;
+    const t = setTimeout(() => setParam("q", draft || null), 300);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]);
-
-  // Keep local state in sync when URL is cleared externally (e.g. "Clear" button)
-  useEffect(() => {
-    setSearch(params.get("q") ?? "");
-  }, [params]);
+  }, [draft, urlQ]);
 
   const hasFilters = ["status", "assigneeId", "clientId", "categoryId", "priority", "q"].some(
     (k) => params.get(k)
@@ -67,7 +59,7 @@ export function TicketFilters({
         <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => setDraft(e.target.value)}
           placeholder="Search title…"
           className="pl-8"
         />
@@ -162,7 +154,10 @@ export function TicketFilters({
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => router.push(pathname)}
+          onClick={() => {
+            setDraft("");
+            router.push(pathname);
+          }}
         >
           <X className="size-4" />
           Clear
