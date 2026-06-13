@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
@@ -35,6 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 
 type Frequency = CreateTicketFormValues["frequency"];
 type Priority = CreateTicketFormValues["priority"];
@@ -52,6 +54,14 @@ export type TemplateOption = {
 };
 
 const FREQUENCIES = Object.keys(FREQUENCY_LABEL) as Frequency[];
+// Frequencies that can back a recurring schedule (ONE_TIME / CUSTOM cannot).
+const SCHEDULABLE_FREQUENCIES: Frequency[] = [
+  "WEEKLY",
+  "MONTHLY",
+  "QUARTERLY",
+  "HALF_YEARLY",
+  "YEARLY",
+];
 
 export function TicketCreateForm({
   categories,
@@ -86,6 +96,7 @@ export function TicketCreateForm({
       managerId: "",
       priority: "MEDIUM",
       frequency: "ONE_TIME",
+      recurring: false,
       billable: "BILLABLE",
       targetHours: undefined,
       description: "",
@@ -130,7 +141,13 @@ export function TicketCreateForm({
 
     const res = await createTicket(values);
     if (res.ok && res.data) {
-      toast.success("Ticket created");
+      if (res.data.recurringSchedule === "created") {
+        toast.success("Ticket created · recurring schedule set up");
+      } else if (res.data.recurringSchedule === "existing") {
+        toast.success("Ticket created · linked to existing recurring schedule");
+      } else {
+        toast.success("Ticket created");
+      }
       router.replace(`/tickets/${res.data.id}`);
       return;
     }
@@ -212,21 +229,14 @@ export function TicketCreateForm({
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Client *</Label>
-                <Select
+                <Combobox
+                  options={clients.map((c) => ({ value: c.id, label: c.name }))}
                   value={selectedClientId}
-                  onValueChange={(v) => setValue("clientId", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select client" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clients.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={(v) => setValue("clientId", v, { shouldValidate: true })}
+                  placeholder="Select client"
+                  searchPlaceholder="Search clients…"
+                  emptyText="No clients found."
+                />
                 {errors.clientId ? (
                   <p className="text-xs text-destructive">
                     {errors.clientId.message}
@@ -235,39 +245,25 @@ export function TicketCreateForm({
               </div>
               <div className="space-y-1.5">
                 <Label>Assign to</Label>
-                <Select
-                  value={selectedAssigneeId}
-                  onValueChange={(v) => setValue("assigneeId", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Unassigned" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Combobox
+                  options={employees.map((e) => ({ value: e.id, label: e.name }))}
+                  value={selectedAssigneeId ?? ""}
+                  onChange={(v) => setValue("assigneeId", v)}
+                  placeholder="Unassigned"
+                  searchPlaceholder="Search employees…"
+                  emptyText="No employees found."
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Manager</Label>
-                <Select
-                  value={selectedManagerId}
-                  onValueChange={(v) => setValue("managerId", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="No manager" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {managers.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Combobox
+                  options={managers.map((m) => ({ value: m.id, label: m.name }))}
+                  value={selectedManagerId ?? ""}
+                  onChange={(v) => setValue("managerId", v)}
+                  placeholder="No manager"
+                  searchPlaceholder="Search managers…"
+                  emptyText="No managers found."
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Target hours</Label>
@@ -301,7 +297,10 @@ export function TicketCreateForm({
                 <Label>Frequency</Label>
                 <Select
                   value={watch("frequency")}
-                  onValueChange={(v) => setValue("frequency", v as Frequency)}
+                  onValueChange={(v) => {
+                    setValue("frequency", v as Frequency);
+                    if (v === "ONE_TIME") setValue("recurring", false);
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -315,6 +314,33 @@ export function TicketCreateForm({
                   </SelectContent>
                 </Select>
               </div>
+
+              {SCHEDULABLE_FREQUENCIES.includes(watch("frequency")) ? (
+                <div className="sm:col-span-2">
+                  {selectedTemplateId ? (
+                    <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border p-3">
+                      <Checkbox
+                        className="mt-0.5"
+                        checked={!!watch("recurring")}
+                        onCheckedChange={(v) => setValue("recurring", v === true)}
+                      />
+                      <span className="text-sm">
+                        Also create a recurring schedule
+                        <span className="block text-xs text-muted-foreground">
+                          Auto-generate this{" "}
+                          {FREQUENCY_LABEL[watch("frequency")].toLowerCase()} work from the
+                          template each period. Manage it under Recurring.
+                        </span>
+                      </span>
+                    </label>
+                  ) : (
+                    <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                      Pick a work template above to enable auto-recurring for this{" "}
+                      {FREQUENCY_LABEL[watch("frequency")].toLowerCase()} ticket.
+                    </p>
+                  )}
+                </div>
+              ) : null}
               <div className="space-y-1.5">
                 <Label>Start date</Label>
                 <Input type="date" {...register("startDate")} />

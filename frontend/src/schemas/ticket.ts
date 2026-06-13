@@ -34,6 +34,7 @@ export const createTicketSchema = z.object({
   startDate: optionalDate,
   dueDate: optionalDate,
   subtasks: z.array(z.object({ title: z.string().trim().min(1) })).default([]),
+  recurring: z.boolean().optional().default(false),
 });
 
 export type CreateTicketInput = z.infer<typeof createTicketSchema>;

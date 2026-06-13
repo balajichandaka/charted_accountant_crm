@@ -56,6 +56,10 @@ export function TicketTimeLog({
       toast.error("Enter the time spent.");
       return;
     }
+    if (workDate > todayStr()) {
+      toast.error("Work date cannot be in the future.");
+      return;
+    }
     start(async () => {
       const res = await logTime(ticketId, {
         minutes: total,
@@ -111,7 +115,7 @@ export function TicketTimeLog({
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Date</Label>
-              <Input type="date" value={workDate} onChange={(e) => setWorkDate(e.target.value)} />
+              <Input type="date" max={todayStr()} value={workDate} onChange={(e) => setWorkDate(e.target.value)} />
             </div>
           </div>
           <div className="space-y-1">
