@@ -1,8 +1,17 @@
-# Local development only. Production: backend → Render, frontend → Vercel.
-# Copy backend/.env.example → backend/.env and frontend/.env.example → frontend/.env
+# CA Practice — single Compose file for EC2 production and optional local Postgres.
+# All service env vars are defined here.
+#
+# EC2 / production (Nginx on 80/443 → frontend :3000, backend internal :4000):
+#   ./scripts/compose.sh up --build -d
+#
+# Local with bundled Postgres (ports 3000 + 4000 + 5432):
+#   DATABASE_URL=postgresql://ca:ca_password@db:5432/ca_app?schema=public \
+#   APP_PUBLIC_URL=http://localhost:3000 SEED_DB=true \
+#   docker compose --profile local up --build
 
 services:
   db:
+    profiles: [local]
     image: postgres:16
     restart: unless-stopped
     environment:
@@ -24,13 +33,27 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
-    env_file:
-      - ./backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
     environment:
+      DATABASE_URL: "${DATABASE_URL:-postgresql://ca_management_service_admin_db_user:4XYIpOVec5X8W2UwC0cNKFuB7QfO8Ays@dpg-d8iljvtckfvc73bv09eg-a.oregon-postgres.render.com/ca_management_service_admin_db?schema=public&sslmode=require}"
+      JWT_SECRET: "iSXPhZRT+rGUrCkGLCzc8pct7qUYmqP0HCMGZN7sYB0="
+      AUTH_SECRET: "iSXPhZRT+rGUrCkGLCzc8pct7qUYmqP0HCMGZN7sYB0="
+      CRON_SECRET: "c0f487898ec28560067581803057de60"
+      SMTP_HOST: "smtp.gmail.com"
+      SMTP_PORT: "587"
+      SMTP_SECURE: "false"
+      SMTP_USER: "srirampadalas@gmail.com"
+      SMTP_PASS: "hjkitxscubasbygg"
+      EMAIL_FROM: "CA Practice <srirampadalas@gmail.com>"
+      FRONTEND_URL: "${APP_PUBLIC_URL:-https://cafirmops.in}"
+      APP_URL: "${APP_PUBLIC_URL:-https://cafirmops.in}"
       PORT: "4000"
       UPLOAD_DIR: "/app/uploads"
+      SEED_DB: "${SEED_DB:-false}"
       NODE_ENV: production
-      SEED_DB: "true"
     ports:
       - "4000:4000"
     volumes:
@@ -49,15 +72,15 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    env_file:
-      - ./frontend/.env
     environment:
-      # Server-side API calls from the frontend container use the compose network.
       BACKEND_URL: "http://backend:4000"
+      AUTH_SECRET: "iSXPhZRT+rGUrCkGLCzc8pct7qUYmqP0HCMGZN7sYB0="
       AUTH_TRUST_HOST: "true"
+      AUTH_URL: "${APP_PUBLIC_URL:-https://cafirmops.in}"
+      APP_URL: "${APP_PUBLIC_URL:-https://cafirmops.in}"
       NODE_ENV: production
     ports:
-      - "3000:3000"
+      - "${APP_PORT:-3000}:3000"
 
 volumes:
   pgdata:

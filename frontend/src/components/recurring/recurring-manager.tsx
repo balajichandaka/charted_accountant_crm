@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Loader2, Trash2, Play, Repeat } from "lucide-react";
+import { format } from "date-fns";
+import { Plus, Loader2, Trash2, Play, Repeat, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { recurringSchema, type RecurringFormValues } from "@/schemas/recurring";
 import {
@@ -36,18 +37,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { ScheduleDetailDialog } from "./schedule-detail-dialog";
+import { EditScheduleDialog } from "./edit-schedule-dialog";
+import type { ScheduleRow } from "./types";
 
 type Frequency = RecurringFormValues["frequency"];
 
-export type ScheduleRow = {
-  id: string;
-  clientName: string;
-  templateName: string;
-  assigneeName: string | null;
-  frequency: Frequency;
-  nextRunAt: string | null;
-  isActive: boolean;
-};
+function fmtNext(iso: string) {
+  return format(new Date(iso), "dd MMM yyyy");
+}
 
 function NewScheduleDialog({
   clients,
@@ -246,26 +244,95 @@ function RunNowButton() {
   );
 }
 
-function Row({ s }: { s: ScheduleRow }) {
+function DeleteConfirmDialog({
+  schedule,
+  open,
+  onOpenChange,
+}: {
+  schedule: ScheduleRow | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   return (
-    <li className="flex items-center gap-3 px-4 py-3">
-      <Repeat className="size-4 shrink-0 text-muted-foreground" />
-      <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-2 font-medium">
-          {s.templateName}
-          <Badge variant="outline">{FREQUENCY_LABEL[s.frequency]}</Badge>
-        </p>
-        <p className="truncate text-xs text-muted-foreground">
-          {s.clientName}
-          {s.assigneeName ? ` · ${s.assigneeName}` : " · Unassigned"}
-          {s.nextRunAt ? ` · next ${s.nextRunAt}` : ""}
-        </p>
-      </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>Delete schedule permanently?</DialogTitle>
+          <DialogDescription>
+            {schedule
+              ? `This permanently deletes the ${FREQUENCY_LABEL[schedule.frequency]} “${schedule.templateName}” schedule for ${schedule.clientName}. Tickets it already generated are kept. This cannot be undone.`
+              : ""}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={pending}
+            onClick={() =>
+              schedule &&
+              start(async () => {
+                const res = await deleteSchedule(schedule.id);
+                if (res.ok) {
+                  toast.success("Schedule deleted");
+                  onOpenChange(false);
+                  router.refresh();
+                } else toast.error(res.error);
+              })
+            }
+          >
+            {pending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+            Delete permanently
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Row({
+  s,
+  onOpenDetail,
+  onEdit,
+  onDelete,
+}: {
+  s: ScheduleRow;
+  onOpenDetail: (s: ScheduleRow) => void;
+  onEdit: (s: ScheduleRow) => void;
+  onDelete: (s: ScheduleRow) => void;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  return (
+    <li className="flex items-center gap-1 px-2 py-1">
+      <button
+        type="button"
+        onClick={() => onOpenDetail(s)}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-muted/50"
+      >
+        <Repeat className="size-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-2 font-medium">
+            <span className="truncate">{s.templateName}</span>
+            <Badge variant="outline">{FREQUENCY_LABEL[s.frequency]}</Badge>
+            {!s.isActive ? <Badge variant="outline">Paused</Badge> : null}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">
+            {s.clientName}
+            {s.assigneeName ? ` · ${s.assigneeName}` : " · Unassigned"}
+            {s.nextRunAt ? ` · next ${fmtNext(s.nextRunAt)}` : ""}
+          </p>
+        </div>
+      </button>
+
       <Switch
         checked={s.isActive}
         disabled={pending}
+        aria-label={s.isActive ? "Pause schedule" : "Resume schedule"}
         onCheckedChange={(v) =>
           start(async () => {
             const res = await setScheduleActive(s.id, v);
@@ -274,20 +341,15 @@ function Row({ s }: { s: ScheduleRow }) {
           })
         }
       />
+      <Button variant="ghost" size="icon" aria-label="Edit schedule" onClick={() => onEdit(s)}>
+        <Pencil className="size-4" />
+      </Button>
       <Button
         variant="ghost"
         size="icon"
         className="text-destructive"
-        disabled={pending}
-        onClick={() =>
-          start(async () => {
-            const res = await deleteSchedule(s.id);
-            if (res.ok) {
-              toast.success("Schedule deleted");
-              router.refresh();
-            } else toast.error(res.error);
-          })
-        }
+        aria-label="Delete schedule"
+        onClick={() => onDelete(s)}
       >
         <Trash2 className="size-4" />
       </Button>
@@ -306,6 +368,10 @@ export function RecurringManager({
   templates: { id: string; name: string }[];
   employees: { id: string; name: string }[];
 }) {
+  const [detailRow, setDetailRow] = useState<ScheduleRow | null>(null);
+  const [editRow, setEditRow] = useState<ScheduleRow | null>(null);
+  const [deleteRow, setDeleteRow] = useState<ScheduleRow | null>(null);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap justify-end gap-2">
@@ -325,10 +391,33 @@ export function RecurringManager({
       ) : (
         <ul className="divide-y rounded-lg border">
           {schedules.map((s) => (
-            <Row key={s.id} s={s} />
+            <Row
+              key={s.id}
+              s={s}
+              onOpenDetail={setDetailRow}
+              onEdit={setEditRow}
+              onDelete={setDeleteRow}
+            />
           ))}
         </ul>
       )}
+
+      <ScheduleDetailDialog
+        schedule={detailRow}
+        open={!!detailRow}
+        onOpenChange={(o) => !o && setDetailRow(null)}
+      />
+      <EditScheduleDialog
+        schedule={editRow}
+        employees={employees}
+        open={!!editRow}
+        onOpenChange={(o) => !o && setEditRow(null)}
+      />
+      <DeleteConfirmDialog
+        schedule={deleteRow}
+        open={!!deleteRow}
+        onOpenChange={(o) => !o && setDeleteRow(null)}
+      />
     </div>
   );
 }
