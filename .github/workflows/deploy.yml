@@ -2,12 +2,24 @@ name: Deploy to EC2
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature_1.0]
   workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to deploy
+        required: true
+        default: main
+        type: choice
+        options:
+          - main
+          - feature_1.0
 
 concurrency:
   group: deploy-ec2-production
   cancel-in-progress: false
+
+env:
+  DEPLOY_BRANCH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || github.ref_name }}
 
 jobs:
   ci:
@@ -19,8 +31,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v4
-
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -31,9 +41,7 @@ jobs:
           script: |
             set -euo pipefail
             APP_DIR="${{ secrets.EC2_APP_DIR }}"
-            if [ -z "$APP_DIR" ]; then APP_DIR="$HOME/charted_accountant_crm"; fi
+            if [ -z "${APP_DIR}" ]; then APP_DIR="$HOME/charted_accountant_crm"; fi
             cd "$APP_DIR"
-            git fetch origin main
-            git reset --hard origin/main
-            chmod +x scripts/deploy-ec2.sh
-            APP_DIR="$APP_DIR" ./scripts/deploy-ec2.sh
+            chmod +x scripts/deploy-ec2.sh scripts/compose.sh
+            DEPLOY_BRANCH="${{ env.DEPLOY_BRANCH }}" APP_DIR="$APP_DIR" ./scripts/deploy-ec2.sh
