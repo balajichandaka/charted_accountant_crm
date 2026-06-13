@@ -31,25 +31,15 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
   );
 }
 
-export function ScheduleDetailDialog({
-  schedule,
-  open,
-  onOpenChange,
-}: {
-  schedule: ScheduleRow | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const [loading, setLoading] = useState(false);
+// Rendered fresh per schedule (keyed by id), so initial state resets on each
+// open and the effect only sets state asynchronously after the fetch resolves.
+function ScheduleDetailBody({ schedule }: { schedule: ScheduleRow }) {
+  const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState<ScheduleDetailTicket[]>([]);
   const [upcomingRuns, setUpcomingRuns] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!open || !schedule) return;
     let cancelled = false;
-    setLoading(true);
-    setTickets([]);
-    setUpcomingRuns([]);
     getScheduleDetail(schedule.id).then((res) => {
       if (cancelled) return;
       if (res.ok && res.data) {
@@ -63,8 +53,95 @@ export function ScheduleDetailDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, schedule]);
+  }, [schedule.id]);
 
+  return (
+    <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
+      {/* Schedule details */}
+      <div className="rounded-lg border px-4 py-2">
+        <DetailRow label="Client" value={schedule.clientName} />
+        <DetailRow label="Category" value={schedule.categoryName ?? "—"} />
+        <DetailRow label="Assignee" value={schedule.assigneeName ?? "Unassigned"} />
+        <DetailRow label="Day of month" value={schedule.dayOfMonth ?? "—"} />
+        <DetailRow label="Due offset" value={`${schedule.dueOffsetDays} days`} />
+        <DetailRow label="Next run" value={fmt(schedule.nextRunAt, true)} />
+        <DetailRow label="Last generated" value={fmt(schedule.lastGeneratedFor, true)} />
+      </div>
+
+      {/* Upcoming runs */}
+      <div>
+        <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+          <CalendarClock className="size-4 text-muted-foreground" />
+          Upcoming runs
+        </p>
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : upcomingRuns.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No upcoming runs (schedule may be paused).</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {upcomingRuns.map((d) => (
+              <Badge key={d} variant="outline" className="font-normal">
+                {fmt(d)}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Generated tickets */}
+      <div>
+        <p className="mb-2 text-sm font-semibold">
+          Generated tickets{!loading ? ` (${tickets.length})` : ""}
+        </p>
+        {loading ? (
+          <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" /> Loading…
+          </div>
+        ) : tickets.length === 0 ? (
+          <p className="py-3 text-sm text-muted-foreground">
+            This schedule hasn&apos;t generated any tickets yet.
+          </p>
+        ) : (
+          <ul className="divide-y rounded-lg border">
+            {tickets.map((t) => (
+              <li key={t.id}>
+                <Link
+                  href={`/tickets/${t.id}`}
+                  className="flex items-center gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-muted/50"
+                >
+                  <span className="text-xs text-muted-foreground tabular">#{t.ticketNumber}</span>
+                  <span className="min-w-0 flex-1 truncate font-medium">{t.title}</span>
+                  <Badge
+                    variant={t.origin === "AUTO" ? "secondary" : "outline"}
+                    className="shrink-0"
+                  >
+                    {t.origin === "AUTO" ? "Auto" : "Manual"}
+                  </Badge>
+                  {t.periodLabel ? (
+                    <span className="hidden text-xs text-muted-foreground sm:inline">{t.periodLabel}</span>
+                  ) : null}
+                  <StatusBadge status={t.status} />
+                  <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ScheduleDetailDialog({
+  schedule,
+  open,
+  onOpenChange,
+}: {
+  schedule: ScheduleRow | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -83,82 +160,7 @@ export function ScheduleDetailDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
-          {/* Schedule details */}
-          {schedule ? (
-            <div className="rounded-lg border px-4 py-2">
-              <DetailRow label="Client" value={schedule.clientName} />
-              <DetailRow label="Category" value={schedule.categoryName ?? "—"} />
-              <DetailRow label="Assignee" value={schedule.assigneeName ?? "Unassigned"} />
-              <DetailRow label="Day of month" value={schedule.dayOfMonth ?? "—"} />
-              <DetailRow label="Due offset" value={`${schedule.dueOffsetDays} days`} />
-              <DetailRow label="Next run" value={fmt(schedule.nextRunAt, true)} />
-              <DetailRow label="Last generated" value={fmt(schedule.lastGeneratedFor, true)} />
-            </div>
-          ) : null}
-
-          {/* Upcoming runs */}
-          <div>
-            <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
-              <CalendarClock className="size-4 text-muted-foreground" />
-              Upcoming runs
-            </p>
-            {loading ? (
-              <p className="text-sm text-muted-foreground">Loading…</p>
-            ) : upcomingRuns.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No upcoming runs (schedule may be paused).</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {upcomingRuns.map((d) => (
-                  <Badge key={d} variant="outline" className="font-normal">
-                    {fmt(d)}
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Generated tickets */}
-          <div>
-            <p className="mb-2 text-sm font-semibold">
-              Generated tickets{!loading ? ` (${tickets.length})` : ""}
-            </p>
-            {loading ? (
-              <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" /> Loading…
-              </div>
-            ) : tickets.length === 0 ? (
-              <p className="py-3 text-sm text-muted-foreground">
-                This schedule hasn&apos;t generated any tickets yet.
-              </p>
-            ) : (
-              <ul className="divide-y rounded-lg border">
-                {tickets.map((t) => (
-                  <li key={t.id}>
-                    <Link
-                      href={`/tickets/${t.id}`}
-                      className="flex items-center gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-muted/50"
-                    >
-                      <span className="text-xs text-muted-foreground tabular">#{t.ticketNumber}</span>
-                      <span className="min-w-0 flex-1 truncate font-medium">{t.title}</span>
-                      <Badge
-                        variant={t.origin === "AUTO" ? "secondary" : "outline"}
-                        className="shrink-0"
-                      >
-                        {t.origin === "AUTO" ? "Auto" : "Manual"}
-                      </Badge>
-                      {t.periodLabel ? (
-                        <span className="hidden text-xs text-muted-foreground sm:inline">{t.periodLabel}</span>
-                      ) : null}
-                      <StatusBadge status={t.status} />
-                      <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
+        {schedule ? <ScheduleDetailBody key={schedule.id} schedule={schedule} /> : null}
       </DialogContent>
     </Dialog>
   );
