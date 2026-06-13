@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { subDays, startOfDay, endOfWeek, startOfWeek } from "date-fns";
+import { subDays, startOfDay, endOfDay, endOfWeek, startOfWeek } from "date-fns";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { authMiddleware } from "../middleware/auth";
 
@@ -68,22 +69,36 @@ router.get("/dashboard", async (req, res, next) => {
 router.get("/", async (req, res, next) => {
   try {
     const now = new Date();
-    const last30 = subDays(startOfDay(now), 30);
+    // Date range: defaults to the last 30 days, overridable via ?from=&to=.
+    const to = req.query.to ? endOfDay(new Date(String(req.query.to))) : endOfDay(now);
+    const from = req.query.from ? startOfDay(new Date(String(req.query.from))) : startOfDay(subDays(now, 30));
+    const assigneeId = req.query.assigneeId ? String(req.query.assigneeId) : undefined;
+
+    // Per-metric scoping (see design): "created" widgets filter on createdAt,
+    // "completed" widgets on completedAt, point-in-time state widgets on neither.
+    const assigneeWhere = assigneeId ? { assigneeId } : {};
+    const createdWhere = { ...assigneeWhere, createdAt: { gte: from, lte: to } };
+    const completedWhere = { ...assigneeWhere, status: "DONE" as const, completedAt: { gte: from, lte: to } };
+    const stateWhere = assigneeWhere; // open counts / top clients are point-in-time
+    // Raw-SQL fragments for the optional assignee filter.
+    const ticketAssigneeSql = assigneeId ? Prisma.sql`AND "assigneeId" = ${assigneeId}` : Prisma.empty;
+    const timeUserSql = assigneeId ? Prisma.sql`AND "userId" = ${assigneeId}` : Prisma.empty;
+    const timeWhere = { workDate: { gte: from, lte: to }, ...(assigneeId ? { userId: assigneeId } : {}) };
 
     const [total, open, done30, byStatus, employees, solvedByEmployee, categoryMix, billableMix, throughputRaw, topClientsRaw, clientHealthRaw, hoursByEmployeeRaw, hoursPerDayRaw] = await Promise.all([
-      prisma.ticket.count(),
-      prisma.ticket.count({ where: { status: { in: [...OPEN] } } }),
-      prisma.ticket.count({ where: { status: "DONE", completedAt: { gte: last30 } } }),
-      prisma.ticket.groupBy({ by: ["status"], _count: { _all: true } }),
+      prisma.ticket.count({ where: createdWhere }),
+      prisma.ticket.count({ where: { ...stateWhere, status: { in: [...OPEN] } } }),
+      prisma.ticket.count({ where: completedWhere }),
+      prisma.ticket.groupBy({ by: ["status"], where: createdWhere, _count: { _all: true } }),
       prisma.user.findMany({ where: { isActive: true }, select: { id: true, name: true } }),
-      prisma.ticket.groupBy({ by: ["assigneeId"], where: { status: "DONE" }, _count: { _all: true } }),
-      prisma.ticket.groupBy({ by: ["categoryId"], _count: { _all: true } }),
-      prisma.ticket.groupBy({ by: ["billable"], _count: { _all: true } }),
-      prisma.$queryRaw<{ month: Date; count: bigint }[]>`SELECT date_trunc('month', "completedAt") AS month, count(*) FROM "Ticket" WHERE status = 'DONE' AND "completedAt" IS NOT NULL GROUP BY month ORDER BY month DESC LIMIT 12`,
-      prisma.ticket.groupBy({ by: ["clientId"], where: { status: { in: [...OPEN] } }, _count: { _all: true }, orderBy: { _count: { clientId: "desc" } }, take: 10 }),
+      prisma.ticket.groupBy({ by: ["assigneeId"], where: completedWhere, _count: { _all: true } }),
+      prisma.ticket.groupBy({ by: ["categoryId"], where: createdWhere, _count: { _all: true } }),
+      prisma.ticket.groupBy({ by: ["billable"], where: createdWhere, _count: { _all: true } }),
+      prisma.$queryRaw<{ month: Date; count: bigint }[]>`SELECT date_trunc('month', "completedAt") AS month, count(*) FROM "Ticket" WHERE status = 'DONE' AND "completedAt" IS NOT NULL AND "completedAt" >= ${from} AND "completedAt" <= ${to} ${ticketAssigneeSql} GROUP BY month ORDER BY month ASC`,
+      prisma.ticket.groupBy({ by: ["clientId"], where: { ...stateWhere, status: { in: [...OPEN] } }, _count: { _all: true }, orderBy: { _count: { clientId: "desc" } }, take: 10 }),
       prisma.client.findMany({ where: { isActive: true }, include: { _count: { select: { tickets: true } } } }),
-      prisma.timeEntry.groupBy({ by: ["userId"], _sum: { minutes: true } }),
-      prisma.$queryRaw<{ day: Date; minutes: bigint }[]>`SELECT date_trunc('day', "workDate") AS day, sum(minutes) AS minutes FROM "TimeEntry" WHERE "workDate" >= ${last30} GROUP BY day ORDER BY day ASC`,
+      prisma.timeEntry.groupBy({ by: ["userId"], where: timeWhere, _sum: { minutes: true } }),
+      prisma.$queryRaw<{ day: Date; minutes: bigint }[]>`SELECT date_trunc('day', "workDate") AS day, sum(minutes) AS minutes FROM "TimeEntry" WHERE "workDate" >= ${from} AND "workDate" <= ${to} ${timeUserSql} GROUP BY day ORDER BY day ASC`,
     ]);
 
     const categories = await prisma.category.findMany({ select: { id: true, name: true, colorHex: true } });
@@ -98,11 +113,12 @@ router.get("/", async (req, res, next) => {
       ok: true,
       data: {
         total, open, done30,
+        employees,
         byStatus: Object.fromEntries(byStatus.map((s) => [s.status, s._count._all])),
         solvedByEmployee: solvedByEmployee.map((s) => ({ name: s.assigneeId ? (nameById.get(s.assigneeId) ?? "Unknown") : "Unassigned", count: s._count._all })),
         categoryMix: categoryMix.filter((c) => c.categoryId).map((c) => ({ name: catNameById.get(c.categoryId!)?.name ?? "Unknown", color: catNameById.get(c.categoryId!)?.color ?? "#64748b", count: c._count._all })),
         billableMix: billableMix.map((b) => ({ billable: b.billable, count: b._count._all })),
-        throughput: throughputRaw.map((r) => ({ month: r.month, count: Number(r.count) })).reverse(),
+        throughput: throughputRaw.map((r) => ({ month: r.month, count: Number(r.count) })),
         topClients: topClientsRaw.map((r) => ({ name: clientNameMap.get(r.clientId) ?? "Unknown", count: r._count._all })),
         clientHealth: clientHealthRaw.map((c) => ({ id: c.id, name: c.name, totalTickets: c._count.tickets })),
         hoursByEmployee: hoursByEmployeeRaw

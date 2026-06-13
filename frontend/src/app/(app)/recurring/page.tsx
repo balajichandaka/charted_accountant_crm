@@ -4,19 +4,24 @@ import { apiGet } from "@/lib/api";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { RecurringManager } from "@/components/recurring/recurring-manager";
+import type { Frequency, ScheduleRow } from "@/components/recurring/types";
 
-type Schedule = {
+// Raw schedule shape as returned by the backend (nested relations).
+type RawSchedule = {
   id: string;
-  clientName: string;
-  templateName: string;
-  assigneeName: string | null;
-  frequency: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "HALF_YEARLY" | "YEARLY";
-  nextRunAt: string | null;
+  frequency: Frequency;
+  dayOfMonth: number | null;
+  dueOffsetDays: number;
   isActive: boolean;
+  nextRunAt: string | null;
+  lastGeneratedFor: string | null;
+  client: { id: string; name: string } | null;
+  template: { id: string; name: string; category: { name: string } | null } | null;
+  assignee: { id: string; name: string } | null;
 };
 
 type RecurringData = {
-  schedules: Schedule[];
+  schedules: RawSchedule[];
   clients: Array<{ id: string; name: string }>;
   templates: Array<{ id: string; name: string }>;
   employees: Array<{ id: string; name: string }>;
@@ -29,6 +34,22 @@ export default async function RecurringPage() {
   const { schedules, clients, templates, employees } =
     await apiGet<RecurringData>("/api/recurring", token);
 
+  // Flatten the nested relations into the row shape the manager renders.
+  const rows: ScheduleRow[] = schedules.map((s) => ({
+    id: s.id,
+    clientName: s.client?.name ?? "Unknown client",
+    templateName: s.template?.name ?? "Unknown template",
+    categoryName: s.template?.category?.name ?? null,
+    assigneeId: s.assignee?.id ?? null,
+    assigneeName: s.assignee?.name ?? null,
+    frequency: s.frequency,
+    dayOfMonth: s.dayOfMonth,
+    dueOffsetDays: s.dueOffsetDays,
+    nextRunAt: s.nextRunAt,
+    lastGeneratedFor: s.lastGeneratedFor,
+    isActive: s.isActive,
+  }));
+
   return (
     <>
       <PageHeader
@@ -38,7 +59,7 @@ export default async function RecurringPage() {
       <Card>
         <CardContent className="pt-6">
           <RecurringManager
-            schedules={schedules}
+            schedules={rows}
             clients={clients}
             templates={templates}
             employees={employees}

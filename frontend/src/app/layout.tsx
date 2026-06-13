@@ -16,7 +16,7 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CA Practice — Work Management",
+  title: "CA Firm Ops — Work Management",
   description:
     "Practice management for Chartered Accountants: clients, work templates, ticketing, and analytics.",
 };

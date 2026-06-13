@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format, subDays, startOfDay } from "date-fns";
 import { Ticket as TicketIcon, CircleCheckBig, Percent, Clock } from "lucide-react";
 import { requireCA } from "@/lib/session";
 import { getToken } from "@/lib/session";
@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { KpiCard } from "@/components/kpi-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AnalyticsFilters } from "@/components/analytics/analytics-filters";
 import {
   EmployeeBarChart,
   ThroughputLineChart,
@@ -19,6 +20,7 @@ type AnalyticsData = {
   total: number;
   open: number;
   done30: number;
+  employees: Array<{ id: string; name: string }>;
   byStatus: Record<string, number>;
   solvedByEmployee: Array<{ name: string; count: number }>;
   categoryMix: Array<{ name: string; color: string; count: number }>;
@@ -30,12 +32,28 @@ type AnalyticsData = {
   hoursPerDay: Array<{ day: string; hours: number }>;
 };
 
-export default async function AnalyticsPage() {
+const fmtDate = (d: Date) => format(d, "yyyy-MM-dd");
+
+export default async function AnalyticsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   await requireCA();
   const token = await getToken();
 
-  const data = await apiGet<AnalyticsData>("/api/analytics", token);
+  const sp = await searchParams;
+  const today = new Date();
+  // Default window: last 30 days. URL params override.
+  const from = sp.from ?? fmtDate(startOfDay(subDays(today, 30)));
+  const to = sp.to ?? fmtDate(today);
+  const assigneeId = sp.assigneeId;
 
+  const query = new URLSearchParams({ from, to });
+  if (assigneeId) query.set("assigneeId", assigneeId);
+  const data = await apiGet<AnalyticsData>(`/api/analytics?${query.toString()}`, token);
+
+  const rangeLabel = `${format(new Date(from), "dd MMM")} – ${format(new Date(to), "dd MMM yyyy")}`;
   const done = data.done30;
   const completionRate = data.total ? Math.round((done / data.total) * 100) : 0;
   const billableCount = data.billableMix.find((b) => b.billable === "BILLABLE")?.count ?? 0;
@@ -49,11 +67,18 @@ export default async function AnalyticsPage() {
         description="Productivity, time tracking and client health across the practice."
       />
 
+      <AnalyticsFilters
+        employees={data.employees}
+        from={from}
+        to={to}
+        today={fmtDate(today)}
+      />
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Total tickets" value={data.total} icon={TicketIcon} />
-        <KpiCard label="Open" value={data.open} icon={Clock} accentClassName="bg-status-in-progress/15 text-status-in-progress" />
-        <KpiCard label="Completed (30d)" value={done} icon={CircleCheckBig} accentClassName="bg-status-done/15 text-status-done" />
-        <KpiCard label="Completion rate" value={`${completionRate}%`} icon={Percent} accentClassName="bg-chart-4/15 text-chart-4" />
+        <KpiCard label="Tickets created" value={data.total} hint={`in ${rangeLabel}`} icon={TicketIcon} />
+        <KpiCard label="Open now" value={data.open} hint="current — all dates" icon={Clock} accentClassName="bg-status-in-progress/15 text-status-in-progress" />
+        <KpiCard label="Completed" value={done} hint={`in ${rangeLabel}`} icon={CircleCheckBig} accentClassName="bg-status-done/15 text-status-done" />
+        <KpiCard label="Completion rate" value={`${completionRate}%`} hint="completed ÷ created in range" icon={Percent} accentClassName="bg-chart-4/15 text-chart-4" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -92,7 +117,7 @@ export default async function AnalyticsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Hours per day (last 30 days)</CardTitle>
+            <CardTitle>Hours per day ({rangeLabel})</CardTitle>
           </CardHeader>
           <CardContent>
             <HoursPerDayChart

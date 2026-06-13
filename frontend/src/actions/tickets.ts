@@ -30,12 +30,17 @@ function toCreateTicketPayload(input: unknown): Record<string, unknown> {
   return obj;
 }
 
+type CreateTicketResult = {
+  id: string;
+  recurringSchedule: "created" | "existing" | null;
+};
+
 export async function createTicket(
   input: unknown
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<CreateTicketResult>> {
   await requireUser();
   const token = await getToken();
-  const result = await apiMutate<{ id: string }>(
+  const result = await apiMutate<CreateTicketResult>(
     "POST",
     "/api/tickets",
     toCreateTicketPayload(input),
@@ -44,6 +49,7 @@ export async function createTicket(
   if (result.ok) {
     revalidatePath("/tickets");
     revalidatePath("/tickets/board");
+    revalidatePath("/recurring");
   }
   return result.ok
     ? { ok: true, data: result.data }
