@@ -11,11 +11,11 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { StatusBadge, PriorityBadge } from "@/components/status-badge";
 import { cn } from "@/lib/utils";
 import type { TicketStatus, Priority } from "@/types/domain";
@@ -111,20 +111,23 @@ export function DashboardKpis({ buckets }: { buckets: Bucket[] }) {
         })}
       </div>
 
-      <Sheet open={!!active} onOpenChange={(o) => !o && setActive(null)}>
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
-          <SheetHeader>
-            <SheetTitle>
+      <Dialog open={!!active} onOpenChange={(o) => !o && setActive(null)}>
+        <DialogContent
+          aria-describedby={undefined}
+          className="flex max-h-[88vh] flex-col gap-0 p-0 sm:max-w-2xl"
+        >
+          <DialogHeader className="border-b px-5 py-4">
+            <DialogTitle>
               {active?.label} ({active?.tickets?.length ?? 0})
-            </SheetTitle>
-          </SheetHeader>
-          <div className="px-4 pb-6">
+            </DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-1">
             {active?.tickets ? (
               <TicketList tickets={active.tickets} onNavigate={() => setActive(null)} />
             ) : null}
           </div>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

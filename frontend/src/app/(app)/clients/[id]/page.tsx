@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { EditClientButton } from "@/components/clients/client-buttons";
 import { ClientActiveToggle } from "@/components/clients/client-active-toggle";
+import { ClientDeleteButton } from "@/components/clients/client-delete-button";
 import { TicketTable } from "@/components/tickets/ticket-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -109,6 +110,7 @@ export default async function ClientDetailPage({
                 notes: client.notes ?? "",
               }}
             />
+            <ClientDeleteButton clientId={client.id} clientName={client.name} />
           </>
         ) : null}
       </PageHeader>

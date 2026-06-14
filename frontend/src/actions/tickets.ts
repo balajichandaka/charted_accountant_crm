@@ -30,12 +30,17 @@ function toCreateTicketPayload(input: unknown): Record<string, unknown> {
   return obj;
 }
 
+type CreateTicketResult = {
+  id: string;
+  recurringSchedule: "created" | "existing" | null;
+};
+
 export async function createTicket(
   input: unknown
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<CreateTicketResult>> {
   await requireUser();
   const token = await getToken();
-  const result = await apiMutate<{ id: string }>(
+  const result = await apiMutate<CreateTicketResult>(
     "POST",
     "/api/tickets",
     toCreateTicketPayload(input),
@@ -44,6 +49,7 @@ export async function createTicket(
   if (result.ok) {
     revalidatePath("/tickets");
     revalidatePath("/tickets/board");
+    revalidatePath("/recurring");
   }
   return result.ok
     ? { ok: true, data: result.data }
@@ -61,6 +67,20 @@ export async function updateTicket(
     revalidatePath("/tickets");
     revalidatePath("/tickets/board");
     revalidatePath(`/tickets/${id}`);
+  }
+  return result.ok
+    ? { ok: true }
+    : { ok: false, error: result.error };
+}
+
+export async function deleteTicket(id: string): Promise<ActionResult> {
+  await requireUser();
+  const token = await getToken();
+  const result = await apiMutate("DELETE", `/api/tickets/${id}`, {}, token);
+  if (result.ok) {
+    revalidatePath("/tickets");
+    revalidatePath("/tickets/board");
+    revalidatePath("/dashboard");
   }
   return result.ok
     ? { ok: true }
@@ -127,7 +147,10 @@ export async function logTime(
   await requireUser();
   const token = await getToken();
   const result = await apiMutate("POST", `/api/tickets/${ticketId}/time-entries`, input, token);
-  if (result.ok) revalidatePath(`/tickets/${ticketId}`);
+  if (result.ok) {
+    revalidatePath(`/tickets/${ticketId}`);
+    revalidatePath("/timesheet");
+  }
   return result.ok
     ? { ok: true }
     : { ok: false, error: result.error };

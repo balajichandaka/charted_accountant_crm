@@ -4,13 +4,14 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Pencil, Loader2 } from "lucide-react";
+import { Plus, Pencil, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { categorySchema, type CategoryInput } from "@/schemas/category";
 import {
   createCategory,
   updateCategory,
   setCategoryActive,
+  deleteCategory,
 } from "@/actions/categories";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -120,6 +122,61 @@ function CategoryDialog({
   );
 }
 
+function DeleteCategoryButton({ cat }: { cat: Cat }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [pending, start] = useTransition();
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="text-muted-foreground hover:text-destructive"
+        title="Delete category"
+        onClick={() => setOpen(true)}
+      >
+        <Trash2 className="size-4" />
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Delete “{cat.name}”?</DialogTitle>
+            <DialogDescription>
+              This permanently deletes the category. If any work template uses it, the
+              delete is blocked. Existing tickets are kept but left un-categorized. This
+              cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={pending}
+              onClick={() =>
+                start(async () => {
+                  const res = await deleteCategory(cat.id);
+                  if (res.ok) {
+                    toast.success("Category deleted");
+                    setOpen(false);
+                    router.refresh();
+                  } else toast.error(res.error);
+                })
+              }
+            >
+              {pending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              Delete permanently
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function Toggle({ cat }: { cat: Cat }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -187,6 +244,7 @@ export function CategoryManager({ categories }: { categories: Cat[] }) {
                 </Button>
               }
             />
+            <DeleteCategoryButton cat={c} />
             <Toggle cat={c} />
           </li>
         ))}

@@ -4,13 +4,14 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Pencil, Loader2 } from "lucide-react";
+import { Plus, Pencil, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { employeeSchema, type EmployeeFormValues } from "@/schemas/employee";
 import {
   createEmployee,
   updateEmployee,
   setUserActive,
+  deleteEmployee,
 } from "@/actions/employees";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -171,6 +172,62 @@ function EmployeeDialog({
   );
 }
 
+function DeleteEmployeeButton({ emp, isSelf }: { emp: Emp; isSelf: boolean }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [pending, start] = useTransition();
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="text-muted-foreground hover:text-destructive"
+        disabled={isSelf}
+        title={isSelf ? "You cannot delete your own account" : "Delete user"}
+        onClick={() => setOpen(true)}
+      >
+        <Trash2 className="size-4" />
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Delete {emp.name}?</DialogTitle>
+            <DialogDescription>
+              This permanently removes the user and their login. If they have logged time,
+              created tickets, or left comments, the delete is blocked — deactivate them
+              instead to keep those records. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={pending}
+              onClick={() =>
+                start(async () => {
+                  const res = await deleteEmployee(emp.id);
+                  if (res.ok) {
+                    toast.success("User deleted");
+                    setOpen(false);
+                    router.refresh();
+                  } else toast.error(res.error);
+                })
+              }
+            >
+              {pending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              Delete permanently
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function ActiveToggle({ emp }: { emp: Emp }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -189,7 +246,13 @@ function ActiveToggle({ emp }: { emp: Emp }) {
   );
 }
 
-export function EmployeeManager({ employees }: { employees: Emp[] }) {
+export function EmployeeManager({
+  employees,
+  currentUserId,
+}: {
+  employees: Emp[];
+  currentUserId: string;
+}) {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
@@ -235,6 +298,7 @@ export function EmployeeManager({ employees }: { employees: Emp[] }) {
                 </Button>
               }
             />
+            <DeleteEmployeeButton emp={e} isSelf={e.id === currentUserId} />
             <ActiveToggle emp={e} />
           </li>
         ))}

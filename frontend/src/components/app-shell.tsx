@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  Landmark,
   LayoutDashboard,
   Ticket,
   SquareKanban,
@@ -13,6 +13,9 @@ import {
   UsersRound,
   Repeat,
   ChartColumnBig,
+  FileSpreadsheet,
+  CalendarClock,
+  CalendarRange,
   Settings,
   LogOut,
   Menu,
@@ -45,11 +48,14 @@ const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/tickets", label: "Tickets", icon: Ticket, matchPrefix: true },
   { href: "/tickets/board", label: "Board", icon: SquareKanban },
+  { href: "/timesheet", label: "Timesheet", icon: CalendarClock },
   { href: "/clients", label: "Clients", icon: Building2, matchPrefix: true },
   { href: "/templates", label: "Work Templates", icon: FileStack, caOnly: true, matchPrefix: true },
   { href: "/recurring", label: "Recurring", icon: Repeat, caOnly: true },
   { href: "/employees", label: "Employees", icon: UsersRound, caOnly: true },
   { href: "/analytics", label: "Analytics", icon: ChartColumnBig, caOnly: true },
+  { href: "/timesheet/team", label: "Team Hours", icon: CalendarRange, caOnly: true },
+  { href: "/reports", label: "Reporting", icon: FileSpreadsheet, caOnly: true },
   { href: "/settings", label: "Settings", icon: Settings, caOnly: true },
 ];
 
@@ -112,11 +118,18 @@ function NavLinks({
 function Brand() {
   return (
     <div className="flex items-center gap-2.5 px-5 py-4">
-      <div className="flex size-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-        <Landmark className="size-5" />
+      <div className="size-9 shrink-0 overflow-hidden rounded-lg">
+        <Image
+          src="/logo-blue.png"
+          alt="CA Firm Ops"
+          width={36}
+          height={36}
+          className="size-full object-cover"
+          priority
+        />
       </div>
       <div className="leading-tight">
-        <p className="text-sm font-semibold text-sidebar-foreground">CA Practice</p>
+        <p className="text-sm font-semibold text-sidebar-foreground">CA Firm Ops</p>
         <p className="text-xs text-sidebar-foreground/60">Work Management</p>
       </div>
     </div>

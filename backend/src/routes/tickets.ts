@@ -5,9 +5,14 @@ import {
   notifyTicketAssigned,
   notifyTicketParticipants,
 } from "../lib/notifications";
-import { authMiddleware } from "../middleware/auth";
+import { authMiddleware, requireCA } from "../middleware/auth";
 import { upload } from "../lib/upload";
-import { Role, type TicketStatus } from "@prisma/client";
+import { computeNextRunAt } from "../lib/recurrence";
+import { Role, type TicketStatus, type Frequency } from "@prisma/client";
+
+// Frequencies that can drive a recurring schedule (ONE_TIME / CUSTOM cannot).
+const SCHEDULABLE_FREQUENCIES: Frequency[] = ["WEEKLY", "MONTHLY", "QUARTERLY", "HALF_YEARLY", "YEARLY"];
+const MONTH_BASED: Frequency[] = ["MONTHLY", "QUARTERLY", "HALF_YEARLY", "YEARLY"];
 
 const router = Router();
 router.use(authMiddleware);
@@ -34,6 +39,8 @@ const ticketSchema = z.object({
   startDate: z.string().optional().or(z.literal("")),
   dueDate: z.string().optional().or(z.literal("")),
   subtasks: z.array(z.object({ title: z.string().trim().min(1), order: z.number() })).default([]),
+  // When true, also set up a recurring schedule from this ticket's template + frequency.
+  recurring: z.boolean().optional().default(false),
 });
 
 // Full ticket include used across multiple queries
@@ -144,7 +151,45 @@ router.post("/", async (req, res, next) => {
     });
     // Notify assignee + manager + client that the ticket was created.
     notifyTicketParticipants(ticket.id, "CREATED").catch(console.error);
-    res.json({ ok: true, data: { id: ticket.id } });
+
+    // Optionally set up a recurring schedule from this ticket (opt-in).
+    // Needs a template and a real cadence; reuses an existing matching schedule.
+    let recurringSchedule: "created" | "existing" | null = null;
+    if (d.recurring && d.templateId && SCHEDULABLE_FREQUENCIES.includes(d.frequency)) {
+      const existing = await prisma.recurringSchedule.findFirst({
+        where: { clientId: d.clientId, templateId: d.templateId, frequency: d.frequency },
+      });
+      let scheduleId: string;
+      if (existing) {
+        scheduleId = existing.id;
+        recurringSchedule = "existing";
+      } else {
+        const start = d.startDate ? new Date(d.startDate) : null;
+        const due = d.dueDate ? new Date(d.dueDate) : null;
+        const dueOffsetDays =
+          start && due ? Math.min(90, Math.max(0, Math.round((due.getTime() - start.getTime()) / 86400000))) : 7;
+        const dayOfMonth = MONTH_BASED.includes(d.frequency) && start ? start.getDate() : null;
+        const created = await prisma.recurringSchedule.create({
+          data: {
+            clientId: d.clientId,
+            templateId: d.templateId,
+            assigneeId: d.assigneeId || null,
+            frequency: d.frequency,
+            dayOfMonth,
+            dueOffsetDays,
+            nextRunAt: computeNextRunAt(d.frequency, dayOfMonth),
+          },
+        });
+        scheduleId = created.id;
+        recurringSchedule = "created";
+      }
+      // Link this manually-created ticket to the schedule so it appears under
+      // "Generated tickets" (tagged Manual). periodLabel stays null so it never
+      // collides with auto-generation, which starts from the next period.
+      await prisma.ticket.update({ where: { id: ticket.id }, data: { recurringScheduleId: scheduleId } });
+    }
+
+    res.json({ ok: true, data: { id: ticket.id, recurringSchedule } });
   } catch (err) { next(err); }
 });
 
@@ -270,6 +315,17 @@ router.post("/:id/comments", upload.array("files", 5), async (req, res, next) =>
     });
     await prisma.activityLog.create({ data: { type: files.length ? "ATTACHMENT_ADDED" : "COMMENTED", actorId: req.user!.sub, ticketId: req.params.id } });
     res.json({ ok: true, data: comment });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/tickets/:id  (CA only — permanent). Children (subtasks, comments,
+// time entries, attachments, activity logs) cascade on ticketId.
+router.delete("/:id", requireCA, async (req, res, next) => {
+  try {
+    const existing = await prisma.ticket.findUnique({ where: { id: req.params.id }, select: { id: true } });
+    if (!existing) { res.status(404).json({ ok: false, error: "Not found" }); return; }
+    await prisma.ticket.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 

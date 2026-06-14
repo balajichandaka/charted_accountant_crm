@@ -40,3 +40,13 @@ export async function setUserActive(
     ? { ok: true }
     : { ok: false, error: result.error };
 }
+
+export async function deleteEmployee(id: string): Promise<ActionResult> {
+  await requireCA();
+  const token = await getToken();
+  const result = await apiMutate("DELETE", `/api/employees/${id}`, {}, token);
+  if (result.ok) revalidatePath("/employees");
+  return result.ok
+    ? { ok: true }
+    : { ok: false, error: result.error };
+}
