@@ -363,7 +363,7 @@ export default async function TicketDetailPage({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-3">
+              <ul className="max-h-80 space-y-3 overflow-y-auto pr-1">
                 {ticket.activities.map((a) => (
                   <li key={a.id} className="flex gap-2 text-sm">
                     <span className="mt-1 size-1.5 shrink-0 rounded-full bg-border" />
