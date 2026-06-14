@@ -142,7 +142,13 @@ export async function toggleSubtask(
 
 export async function logTime(
   ticketId: string,
-  input: { minutes: number; workDate?: string; description?: string; billable?: boolean }
+  input: {
+    minutes: number;
+    startMinutes?: number;
+    workDate?: string;
+    description?: string;
+    billable?: boolean;
+  }
 ): Promise<ActionResult> {
   await requireUser();
   const token = await getToken();

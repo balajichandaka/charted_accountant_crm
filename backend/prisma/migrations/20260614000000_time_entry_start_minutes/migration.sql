@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "TimeEntry" ADD COLUMN "startMinutes" INTEGER NOT NULL DEFAULT 540;

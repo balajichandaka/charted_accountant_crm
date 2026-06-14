@@ -5,7 +5,7 @@ export type SessionUser = {
   id: string;
   name?: string | null;
   email?: string | null;
-  role: "CA" | "EMPLOYEE";
+  role: "CA" | "MANAGER" | "EMPLOYEE";
 };
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
@@ -28,5 +28,11 @@ export async function requireUser(): Promise<SessionUser> {
 export async function requireCA(): Promise<SessionUser> {
   const user = await requireUser();
   if (user.role !== "CA") redirect("/dashboard");
+  return user;
+}
+
+export async function requireLeadership(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (user.role !== "CA" && user.role !== "MANAGER") redirect("/timesheet");
   return user;
 }

@@ -2,12 +2,12 @@ import { Router } from "express";
 import { z } from "zod";
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, format } from "date-fns";
 import { prisma } from "../lib/prisma";
-import { authMiddleware, requireCA } from "../middleware/auth";
+import { canViewEmployee, managedEmployeeIds } from "../lib/team-scope";
+import { authMiddleware, requireLeadership } from "../middleware/auth";
 
 const router = Router();
 router.use(authMiddleware);
 
-// Parse ?from&to (yyyy-MM-dd). Defaults to the current Mon–Sun week.
 function range(req: { query: Record<string, unknown> }) {
   const now = new Date();
   const from = req.query.from
@@ -19,18 +19,51 @@ function range(req: { query: Record<string, unknown> }) {
   return { from, to };
 }
 
-// GET /api/timesheet?from&to&userId  — one user's entries for the week (Tier 1).
-// Non-CA users may only read their own; CA may pass ?userId to view anyone.
+function mapEntry(e: {
+  id: string;
+  ticketId: string;
+  minutes: number;
+  startMinutes: number;
+  billable: boolean;
+  description: string | null;
+  workDate: Date;
+  ticket: { ticketNumber: number; title: string; client: { name: string } };
+}) {
+  return {
+    id: e.id,
+    ticketId: e.ticketId,
+    ticketNumber: e.ticket.ticketNumber,
+    ticketTitle: e.ticket.title,
+    clientName: e.ticket.client.name,
+    minutes: e.minutes,
+    startMinutes: e.startMinutes,
+    billable: e.billable,
+    description: e.description,
+    workDate: e.workDate,
+  };
+}
+
+// GET /api/timesheet?from&to&userId
 router.get("/", async (req, res, next) => {
   try {
     const { from, to } = range(req);
     const requested = req.query.userId ? String(req.query.userId) : undefined;
-    const userId = requested && req.user?.role === "CA" ? requested : req.user!.sub;
+    const viewer = req.user!;
+    let userId = viewer.sub;
+
+    if (requested && requested !== viewer.sub) {
+      const allowed = await canViewEmployee(viewer.role, viewer.sub, requested);
+      if (!allowed) {
+        res.status(403).json({ ok: false, error: "You cannot view this user's timesheet." });
+        return;
+      }
+      userId = requested;
+    }
 
     const entries = await prisma.timeEntry.findMany({
       where: { userId, workDate: { gte: from, lte: to } },
       include: { ticket: { select: { id: true, ticketNumber: true, title: true, client: { select: { name: true } } } } },
-      orderBy: { workDate: "asc" },
+      orderBy: [{ workDate: "asc" }, { startMinutes: "asc" }],
     });
 
     res.json({
@@ -39,40 +72,48 @@ router.get("/", async (req, res, next) => {
         from: format(from, "yyyy-MM-dd"),
         to: format(to, "yyyy-MM-dd"),
         userId,
-        entries: entries.map((e) => ({
-          id: e.id,
-          ticketId: e.ticketId,
-          ticketNumber: e.ticket.ticketNumber,
-          ticketTitle: e.ticket.title,
-          clientName: e.ticket.client.name,
-          minutes: e.minutes,
-          billable: e.billable,
-          description: e.description,
-          workDate: e.workDate,
-        })),
+        entries: entries.map(mapEntry),
       },
     });
   } catch (err) { next(err); }
 });
 
-// GET /api/timesheet/team?from&to  — every active user's weekly totals (Tier 2, CA only).
-router.get("/team", requireCA, async (req, res, next) => {
+// GET /api/timesheet/team?from&to — CA: all active users; MANAGER: managed assignees
+router.get("/team", requireLeadership, async (req, res, next) => {
   try {
     const { from, to } = range(req);
-    const [users, entries] = await Promise.all([
-      prisma.user.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
-      prisma.timeEntry.findMany({
-        where: { workDate: { gte: from, lte: to } },
-        select: { userId: true, minutes: true, billable: true, workDate: true },
-      }),
-    ]);
+    const viewer = req.user!;
+
+    let users;
+    if (viewer.role === "CA") {
+      users = await prisma.user.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      });
+    } else {
+      const ids = await managedEmployeeIds(viewer.sub);
+      users = await prisma.user.findMany({
+        where: { id: { in: ids }, isActive: true },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      });
+    }
+
+    const entries = await prisma.timeEntry.findMany({
+      where: {
+        userId: { in: users.map((u) => u.id) },
+        workDate: { gte: from, lte: to },
+      },
+      select: { userId: true, minutes: true, billable: true, workDate: true },
+    });
 
     const byUser = new Map(
       users.map((u) => [u.id, { id: u.id, name: u.name, totalMinutes: 0, billableMinutes: 0, perDay: {} as Record<string, number> }])
     );
     for (const e of entries) {
       const row = byUser.get(e.userId);
-      if (!row) continue; // entry by an inactive/removed user — skip
+      if (!row) continue;
       const day = format(e.workDate, "yyyy-MM-dd");
       row.totalMinutes += e.minutes;
       if (e.billable) row.billableMinutes += e.minutes;
@@ -90,21 +131,67 @@ router.get("/team", requireCA, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/timesheet/team/detail?userId&date
+router.get("/team/detail", requireLeadership, async (req, res, next) => {
+  try {
+    const userId = String(req.query.userId ?? "");
+    const date = String(req.query.date ?? "");
+    if (!userId || !date) {
+      res.status(400).json({ ok: false, error: "userId and date are required." });
+      return;
+    }
+
+    const viewer = req.user!;
+    const allowed = await canViewEmployee(viewer.role, viewer.sub, userId);
+    if (!allowed) {
+      res.status(403).json({ ok: false, error: "You cannot view this employee's entries." });
+      return;
+    }
+
+    const dayStart = startOfDay(new Date(date));
+    const dayEnd = endOfDay(new Date(date));
+
+    const [user, entries] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true } }),
+      prisma.timeEntry.findMany({
+        where: { userId, workDate: { gte: dayStart, lte: dayEnd } },
+        include: { ticket: { select: { id: true, ticketNumber: true, title: true, client: { select: { name: true } } } } },
+        orderBy: { startMinutes: "asc" },
+      }),
+    ]);
+
+    if (!user) {
+      res.status(404).json({ ok: false, error: "User not found." });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      data: {
+        user,
+        date,
+        entries: entries.map(mapEntry),
+        totalMinutes: entries.reduce((s, e) => s + e.minutes, 0),
+      },
+    });
+  } catch (err) { next(err); }
+});
+
 const editSchema = z.object({
   minutes: z.coerce.number().int().min(1).optional(),
+  startMinutes: z.coerce.number().int().min(0).max(1439).optional(),
   workDate: z.string().optional(),
   description: z.string().optional(),
   billable: z.boolean().optional(),
 });
 
-// PATCH /api/timesheet/entries/:id  — edit an entry (owner or CA).
 router.patch("/entries/:id", async (req, res, next) => {
   try {
     const parsed = editSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.issues[0]?.message }); return; }
     const entry = await prisma.timeEntry.findUnique({ where: { id: req.params.id }, select: { userId: true } });
     if (!entry) { res.status(404).json({ ok: false, error: "Time entry not found." }); return; }
-    if (entry.userId !== req.user?.sub && req.user?.role !== "CA") {
+    if (entry.userId !== req.user?.sub) {
       res.status(403).json({ ok: false, error: "You can only edit your own time entries." });
       return;
     }
@@ -117,6 +204,7 @@ router.patch("/entries/:id", async (req, res, next) => {
       where: { id: req.params.id },
       data: {
         ...(d.minutes != null ? { minutes: d.minutes } : {}),
+        ...(d.startMinutes != null ? { startMinutes: d.startMinutes } : {}),
         ...(d.workDate ? { workDate: new Date(d.workDate) } : {}),
         ...(d.description !== undefined ? { description: d.description || null } : {}),
         ...(d.billable !== undefined ? { billable: d.billable } : {}),
@@ -126,12 +214,11 @@ router.patch("/entries/:id", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// DELETE /api/timesheet/entries/:id  — delete an entry (owner or CA).
 router.delete("/entries/:id", async (req, res, next) => {
   try {
     const entry = await prisma.timeEntry.findUnique({ where: { id: req.params.id }, select: { userId: true } });
     if (!entry) { res.status(404).json({ ok: false, error: "Time entry not found." }); return; }
-    if (entry.userId !== req.user?.sub && req.user?.role !== "CA") {
+    if (entry.userId !== req.user?.sub) {
       res.status(403).json({ ok: false, error: "You can only delete your own time entries." });
       return;
     }

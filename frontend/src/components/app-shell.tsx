@@ -15,7 +15,6 @@ import {
   ChartColumnBig,
   FileSpreadsheet,
   CalendarClock,
-  CalendarRange,
   Settings,
   LogOut,
   Menu,
@@ -54,7 +53,6 @@ const NAV: NavItem[] = [
   { href: "/recurring", label: "Recurring", icon: Repeat, caOnly: true },
   { href: "/employees", label: "Employees", icon: UsersRound, caOnly: true },
   { href: "/analytics", label: "Analytics", icon: ChartColumnBig, caOnly: true },
-  { href: "/timesheet/team", label: "Team Hours", icon: CalendarRange, caOnly: true },
   { href: "/reports", label: "Reporting", icon: FileSpreadsheet, caOnly: true },
   { href: "/settings", label: "Settings", icon: Settings, caOnly: true },
 ];
@@ -153,7 +151,7 @@ export function AppShell({
         <Brand />
         <NavLinks pathname={pathname} role={user.role} />
         <div className="px-3 pb-4 text-xs text-sidebar-foreground/40">
-          {user.role === "CA" ? "Administrator" : "Employee"}
+          {user.role === "CA" ? "Administrator" : user.role === "MANAGER" ? "Manager" : "Employee"}
         </div>
       </aside>
 

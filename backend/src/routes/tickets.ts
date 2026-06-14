@@ -263,17 +263,27 @@ router.post("/:id/time-entries", async (req, res, next) => {
     const schema = z.object({
       minutes: z.coerce.number().int().min(1, "Enter the time spent"),
       workDate: z.string().optional(),
+      startMinutes: z.coerce.number().int().min(0).max(1439).optional(),
       description: z.string().optional(),
       billable: z.boolean().optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.issues[0]?.message }); return; }
     const d = parsed.data!;
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: req.params.id },
+      select: { id: true },
+    });
+    if (!ticket) {
+      res.status(404).json({ ok: false, error: "Ticket not found." });
+      return;
+    }
     await prisma.timeEntry.create({
       data: {
         ticketId: req.params.id,
         userId: req.user!.sub,
         minutes: d.minutes,
+        startMinutes: d.startMinutes ?? 540,
         workDate: d.workDate ? new Date(d.workDate) : new Date(),
         description: d.description || null,
         billable: d.billable ?? true,

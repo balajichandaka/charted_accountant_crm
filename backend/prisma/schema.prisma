@@ -284,12 +284,13 @@ model TicketComment {
 }
 
 model TimeEntry {
-  id          String   @id @default(cuid())
-  minutes     Int
-  description String?
-  workDate    DateTime
-  billable    Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id           String   @id @default(cuid())
+  minutes      Int
+  startMinutes Int      @default(540)
+  description  String?
+  workDate     DateTime
+  billable     Boolean  @default(true)
+  createdAt    DateTime @default(now())
 
   ticketId String
   ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   format,
@@ -11,6 +12,9 @@ import {
 } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { dayKey, fmtHours } from "./calendar-utils";
+import { TeamDayDetailDialog } from "./team-day-detail-dialog";
+import { TimesheetDatePicker } from "./timesheet-date-picker";
 
 export type TeamRow = {
   id: string;
@@ -20,35 +24,34 @@ export type TeamRow = {
   perDay: Record<string, number>;
 };
 
-const dayKey = (d: Date) => format(d, "yyyy-MM-dd");
-
-function fmtHours(minutes: number) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h && m) return `${h}h ${m}m`;
-  if (h) return `${h}h`;
-  return `${m}m`;
-}
-
-export function TeamTimesheet({
+export function TeamHoursGrid({
   employees,
   from,
   to,
   today,
+  currentUserId,
 }: {
   employees: TeamRow[];
   from: string;
   to: string;
   today: string;
+  currentUserId: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const days = eachDayOfInterval({ start: new Date(from), end: new Date(to) });
+  const [detail, setDetail] = useState<{ userId: string; userName: string; date: string } | null>(
+    null
+  );
 
   function goWeek(anchor: Date) {
     const f = startOfWeek(anchor, { weekStartsOn: 1 });
     const t = endOfWeek(anchor, { weekStartsOn: 1 });
-    router.push(`${pathname}?from=${dayKey(f)}&to=${dayKey(t)}`);
+    const params = new URLSearchParams(window.location.search);
+    params.set("from", dayKey(f));
+    params.set("to", dayKey(t));
+    params.set("tab", "team");
+    router.push(`${pathname}?${params.toString()}`);
   }
 
   const rangeLabel = `${format(new Date(from), "dd MMM")} – ${format(new Date(to), "dd MMM yyyy")}`;
@@ -63,16 +66,37 @@ export function TeamTimesheet({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon" onClick={() => goWeek(subDays(new Date(from), 7))} title="Previous week">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => goWeek(subDays(new Date(from), 7))}
+            title="Previous week"
+          >
             <ChevronLeft className="size-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => goWeek(new Date())} disabled={isCurrentWeek}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => goWeek(new Date())}
+            disabled={isCurrentWeek}
+          >
             This week
           </Button>
-          <Button variant="outline" size="icon" onClick={() => goWeek(addDays(new Date(from), 7))} title="Next week">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => goWeek(addDays(new Date(from), 7))}
+            title="Next week"
+          >
             <ChevronRight className="size-4" />
           </Button>
-          <span className="ml-2 text-sm font-medium">{rangeLabel}</span>
+          <TimesheetDatePicker
+            label={rangeLabel}
+            value={new Date(from)}
+            today={today}
+            highlightWeek
+            onSelect={goWeek}
+          />
         </div>
         <div className="flex items-center gap-4 text-sm">
           <span>
@@ -104,15 +128,19 @@ export function TeamTimesheet({
                   <span className="block text-[11px] font-normal">{format(d, "dd")}</span>
                 </th>
               ))}
-              <th className="px-3 py-2 text-right text-xs font-bold uppercase tracking-wide text-primary">Total</th>
-              <th className="px-3 py-2 text-right text-xs font-bold uppercase tracking-wide text-primary">Billable</th>
+              <th className="px-3 py-2 text-right text-xs font-bold uppercase tracking-wide text-primary">
+                Total
+              </th>
+              <th className="px-3 py-2 text-right text-xs font-bold uppercase tracking-wide text-primary">
+                Billable
+              </th>
             </tr>
           </thead>
           <tbody>
             {employees.length === 0 ? (
               <tr>
                 <td colSpan={days.length + 3} className="px-3 py-10 text-center text-muted-foreground">
-                  No active employees.
+                  No team members with logged hours this week.
                 </td>
               </tr>
             ) : (
@@ -122,13 +150,23 @@ export function TeamTimesheet({
                     {e.name}
                   </td>
                   {days.map((d) => {
-                    const mins = e.perDay[dayKey(d)] ?? 0;
+                    const k = dayKey(d);
+                    const mins = e.perDay[k] ?? 0;
                     return (
-                      <td
-                        key={dayKey(d)}
-                        className={`px-2 py-2 text-center tabular ${mins ? "" : "text-muted-foreground/30"}`}
-                      >
-                        {mins ? fmtHours(mins) : "—"}
+                      <td key={k} className="px-1 py-1 text-center">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDetail({ userId: e.id, userName: e.name, date: k })
+                          }
+                          className={`flex h-9 w-full items-center justify-center rounded-md text-sm tabular transition-colors ${
+                            mins
+                              ? "bg-primary/10 font-medium text-foreground hover:bg-primary/20"
+                              : "text-muted-foreground/40 hover:bg-accent"
+                          }`}
+                        >
+                          {mins ? fmtHours(mins) : "—"}
+                        </button>
                       </td>
                     );
                   })}
@@ -160,6 +198,15 @@ export function TeamTimesheet({
           ) : null}
         </table>
       </div>
+
+      <TeamDayDetailDialog
+        open={!!detail}
+        onOpenChange={(open) => !open && setDetail(null)}
+        userId={detail?.userId ?? ""}
+        userName={detail?.userName ?? ""}
+        date={detail?.date ?? ""}
+        canEdit={detail?.userId === currentUserId}
+      />
     </div>
   );
 }
