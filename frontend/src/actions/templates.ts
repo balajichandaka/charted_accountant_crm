@@ -48,3 +48,13 @@ export async function setTemplateActive(
     ? { ok: true }
     : { ok: false, error: result.error };
 }
+
+export async function deleteWorkTemplate(id: string): Promise<ActionResult> {
+  await requireCA();
+  const token = await getToken();
+  const result = await apiMutate("DELETE", `/api/templates/${id}`, {}, token);
+  if (result.ok) revalidatePath("/templates");
+  return result.ok
+    ? { ok: true }
+    : { ok: false, error: result.error };
+}

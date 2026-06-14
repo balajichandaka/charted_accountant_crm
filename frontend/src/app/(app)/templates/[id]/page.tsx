@@ -7,6 +7,7 @@ import { apiGet } from "@/lib/api";
 import { PageHeader } from "@/components/page-header";
 import { TemplateForm } from "@/components/templates/template-form";
 import { TemplateActiveToggle } from "@/components/templates/template-active-toggle";
+import { TemplateDeleteButton } from "@/components/templates/template-delete-button";
 
 type Template = {
   id: string;
@@ -60,6 +61,7 @@ export default async function EditTemplatePage({
         description="Edit this work template. Existing tickets keep their own copy."
       >
         <TemplateActiveToggle id={template.id} isActive={template.isActive} />
+        <TemplateDeleteButton templateId={template.id} templateName={template.name} />
       </PageHeader>
       <TemplateForm
         categories={categories}

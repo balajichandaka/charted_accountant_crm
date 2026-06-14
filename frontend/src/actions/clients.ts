@@ -46,3 +46,13 @@ export async function setClientActive(
     ? { ok: true }
     : { ok: false, error: result.error };
 }
+
+export async function deleteClient(id: string): Promise<ActionResult> {
+  await requireCA();
+  const token = await getToken();
+  const result = await apiMutate("DELETE", `/api/clients/${id}`, {}, token);
+  if (result.ok) revalidatePath("/clients");
+  return result.ok
+    ? { ok: true }
+    : { ok: false, error: result.error };
+}

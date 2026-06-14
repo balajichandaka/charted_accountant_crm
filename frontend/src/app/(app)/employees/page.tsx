@@ -15,7 +15,7 @@ type Employee = {
 };
 
 export default async function EmployeesPage() {
-  await requireCA();
+  const user = await requireCA();
   const token = await getToken();
 
   const employees = await apiGet<Employee[]>("/api/employees", token);
@@ -29,6 +29,7 @@ export default async function EmployeesPage() {
       <Card>
         <CardContent className="pt-6">
           <EmployeeManager
+            currentUserId={user.id}
             employees={employees.map((u) => ({
               id: u.id,
               name: u.name,

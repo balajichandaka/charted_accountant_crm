@@ -73,4 +73,32 @@ router.patch("/:id/active", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// DELETE /api/templates/:id  (CA only — permanent).
+// Blocked if any recurring schedule depends on it (required FK). Otherwise the
+// template's subtasks cascade, and previously generated tickets are kept but
+// unlinked (templateId is optional).
+router.delete("/:id", async (req, res, next) => {
+  try {
+    const id = req.params.id;
+    const target = await prisma.workTemplate.findUnique({ where: { id }, select: { id: true } });
+    if (!target) { res.status(404).json({ ok: false, error: "Template not found." }); return; }
+
+    const schedules = await prisma.recurringSchedule.count({ where: { templateId: id } });
+    if (schedules) {
+      res.status(409).json({
+        ok: false,
+        error: `Cannot delete: this template is used by ${schedules} recurring schedule${schedules === 1 ? "" : "s"}. Delete the schedule${schedules === 1 ? "" : "s"} first, then delete the template.`,
+        details: { schedules },
+      });
+      return;
+    }
+
+    await prisma.$transaction([
+      prisma.ticket.updateMany({ where: { templateId: id }, data: { templateId: null } }),
+      prisma.workTemplate.delete({ where: { id } }),
+    ]);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 export default router;

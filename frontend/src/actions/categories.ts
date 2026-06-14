@@ -40,3 +40,13 @@ export async function setCategoryActive(
     ? { ok: true }
     : { ok: false, error: result.error };
 }
+
+export async function deleteCategory(id: string): Promise<ActionResult> {
+  await requireCA();
+  const token = await getToken();
+  const result = await apiMutate("DELETE", `/api/categories/${id}`, {}, token);
+  if (result.ok) revalidatePath("/settings");
+  return result.ok
+    ? { ok: true }
+    : { ok: false, error: result.error };
+}

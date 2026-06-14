@@ -21,6 +21,8 @@ type AnalyticsData = {
   open: number;
   done30: number;
   employees: Array<{ id: string; name: string }>;
+  clients: Array<{ id: string; name: string }>;
+  categories: Array<{ id: string; name: string }>;
   byStatus: Record<string, number>;
   solvedByEmployee: Array<{ name: string; count: number }>;
   categoryMix: Array<{ name: string; color: string; count: number }>;

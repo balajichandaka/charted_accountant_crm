@@ -5,7 +5,7 @@ import {
   notifyTicketAssigned,
   notifyTicketParticipants,
 } from "../lib/notifications";
-import { authMiddleware } from "../middleware/auth";
+import { authMiddleware, requireCA } from "../middleware/auth";
 import { upload } from "../lib/upload";
 import { computeNextRunAt } from "../lib/recurrence";
 import { Role, type TicketStatus, type Frequency } from "@prisma/client";
@@ -315,6 +315,17 @@ router.post("/:id/comments", upload.array("files", 5), async (req, res, next) =>
     });
     await prisma.activityLog.create({ data: { type: files.length ? "ATTACHMENT_ADDED" : "COMMENTED", actorId: req.user!.sub, ticketId: req.params.id } });
     res.json({ ok: true, data: comment });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/tickets/:id  (CA only — permanent). Children (subtasks, comments,
+// time entries, attachments, activity logs) cascade on ticketId.
+router.delete("/:id", requireCA, async (req, res, next) => {
+  try {
+    const existing = await prisma.ticket.findUnique({ where: { id: req.params.id }, select: { id: true } });
+    if (!existing) { res.status(404).json({ ok: false, error: "Not found" }); return; }
+    await prisma.ticket.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 

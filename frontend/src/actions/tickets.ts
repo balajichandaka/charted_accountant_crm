@@ -73,6 +73,20 @@ export async function updateTicket(
     : { ok: false, error: result.error };
 }
 
+export async function deleteTicket(id: string): Promise<ActionResult> {
+  await requireUser();
+  const token = await getToken();
+  const result = await apiMutate("DELETE", `/api/tickets/${id}`, {}, token);
+  if (result.ok) {
+    revalidatePath("/tickets");
+    revalidatePath("/tickets/board");
+    revalidatePath("/dashboard");
+  }
+  return result.ok
+    ? { ok: true }
+    : { ok: false, error: result.error };
+}
+
 export async function changeTicketStatus(
   id: string,
   status: TicketStatus
@@ -133,7 +147,10 @@ export async function logTime(
   await requireUser();
   const token = await getToken();
   const result = await apiMutate("POST", `/api/tickets/${ticketId}/time-entries`, input, token);
-  if (result.ok) revalidatePath(`/tickets/${ticketId}`);
+  if (result.ok) {
+    revalidatePath(`/tickets/${ticketId}`);
+    revalidatePath("/timesheet");
+  }
   return result.ok
     ? { ok: true }
     : { ok: false, error: result.error };
