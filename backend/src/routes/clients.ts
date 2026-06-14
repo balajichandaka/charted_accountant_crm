@@ -73,4 +73,36 @@ router.patch("/:id/active", requireCA, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// DELETE /api/clients/:id  (CA only — permanent).
+// Blocked if any ticket or recurring schedule depends on it (both required FKs).
+// Clients with history should be deactivated instead.
+router.delete("/:id", requireCA, async (req, res, next) => {
+  try {
+    const id = req.params.id;
+    const target = await prisma.client.findUnique({ where: { id }, select: { id: true } });
+    if (!target) { res.status(404).json({ ok: false, error: "Client not found." }); return; }
+
+    const [tickets, schedules] = await Promise.all([
+      prisma.ticket.count({ where: { clientId: id } }),
+      prisma.recurringSchedule.count({ where: { clientId: id } }),
+    ]);
+
+    if (tickets || schedules) {
+      const parts = [
+        tickets && `${tickets} ticket${tickets === 1 ? "" : "s"}`,
+        schedules && `${schedules} recurring schedule${schedules === 1 ? "" : "s"}`,
+      ].filter(Boolean);
+      res.status(409).json({
+        ok: false,
+        error: `Cannot delete: this client has ${parts.join(" and ")}. Deactivate the client instead to keep these records but hide it from new work.`,
+        details: { tickets, schedules },
+      });
+      return;
+    }
+
+    await prisma.client.delete({ where: { id } });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 export default router;

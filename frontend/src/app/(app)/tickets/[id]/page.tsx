@@ -15,6 +15,7 @@ import {
   type CommentNode,
 } from "@/components/tickets/ticket-comments";
 import { TicketEditDialog } from "@/components/tickets/ticket-edit-dialog";
+import { TicketDeleteButton } from "@/components/tickets/ticket-delete-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -138,7 +139,7 @@ export default async function TicketDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await requireUser();
+  const user = await requireUser();
   const token = await getToken();
 
   let data: TicketDetailData;
@@ -206,6 +207,9 @@ export default async function TicketDetailPage({
             dueDate: ticket.dueDate ? format(new Date(ticket.dueDate), "yyyy-MM-dd") : "",
           }}
         />
+        {user.role === "CA" && (
+          <TicketDeleteButton ticketId={ticket.id} ticketNumber={ticket.ticketNumber} />
+        )}
       </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -359,7 +363,7 @@ export default async function TicketDetailPage({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-3">
+              <ul className="max-h-80 space-y-3 overflow-y-auto pr-1">
                 {ticket.activities.map((a) => (
                   <li key={a.id} className="flex gap-2 text-sm">
                     <span className="mt-1 size-1.5 shrink-0 rounded-full bg-border" />

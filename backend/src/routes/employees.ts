@@ -61,4 +61,50 @@ router.patch("/:id/active", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// DELETE /api/employees/:id  (CA only — permanent).
+// Only employees with NO history can be hard-deleted; otherwise we refuse and
+// tell the CA to deactivate instead (preserves billable-hours & audit data).
+router.delete("/:id", async (req, res, next) => {
+  try {
+    const id = req.params.id;
+    if (id === req.user?.sub) { res.status(400).json({ ok: false, error: "You cannot delete your own account. Ask another CA to do it." }); return; }
+
+    const target = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+    if (!target) { res.status(404).json({ ok: false, error: "Employee not found." }); return; }
+
+    const [timeEntries, reported, comments, attachments] = await Promise.all([
+      prisma.timeEntry.count({ where: { userId: id } }),
+      prisma.ticket.count({ where: { reporterId: id } }),
+      prisma.ticketComment.count({ where: { authorId: id } }),
+      prisma.attachment.count({ where: { uploadedById: id } }),
+    ]);
+
+    if (timeEntries || reported || comments || attachments) {
+      const parts = [
+        timeEntries && `${timeEntries} time log${timeEntries === 1 ? "" : "s"}`,
+        reported && `${reported} created ticket${reported === 1 ? "" : "s"}`,
+        comments && `${comments} comment${comments === 1 ? "" : "s"}`,
+        attachments && `${attachments} attachment${attachments === 1 ? "" : "s"}`,
+      ].filter(Boolean);
+      res.status(409).json({
+        ok: false,
+        error: `Cannot delete: this employee has ${parts.join(", ")}. Deactivate them instead to keep these records but block their login.`,
+        details: { timeEntries, reported, comments, attachments },
+      });
+      return;
+    }
+
+    // No history — safe to remove. Null out optional links, then delete.
+    await prisma.$transaction([
+      prisma.ticket.updateMany({ where: { assigneeId: id }, data: { assigneeId: null } }),
+      prisma.ticket.updateMany({ where: { managerId: id }, data: { managerId: null } }),
+      prisma.ticketSubtask.updateMany({ where: { assigneeId: id }, data: { assigneeId: null } }),
+      prisma.recurringSchedule.updateMany({ where: { assigneeId: id }, data: { assigneeId: null } }),
+      prisma.notificationLog.deleteMany({ where: { userId: id } }),
+      prisma.user.delete({ where: { id } }),
+    ]);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 export default router;

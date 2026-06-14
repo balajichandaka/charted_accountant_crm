@@ -114,6 +114,8 @@ router.get("/", async (req, res, next) => {
       data: {
         total, open, done30,
         employees,
+        clients: clientHealthRaw.map((c) => ({ id: c.id, name: c.name })),
+        categories: categories.map((c) => ({ id: c.id, name: c.name })),
         byStatus: Object.fromEntries(byStatus.map((s) => [s.status, s._count._all])),
         solvedByEmployee: solvedByEmployee.map((s) => ({ name: s.assigneeId ? (nameById.get(s.assigneeId) ?? "Unknown") : "Unassigned", count: s._count._all })),
         categoryMix: categoryMix.filter((c) => c.categoryId).map((c) => ({ name: catNameById.get(c.categoryId!)?.name ?? "Unknown", color: catNameById.get(c.categoryId!)?.color ?? "#64748b", count: c._count._all })),
@@ -128,6 +130,68 @@ router.get("/", async (req, res, next) => {
         hoursPerDay: hoursPerDayRaw.map((r) => ({ day: r.day, hours: Math.round(Number(r.minutes) / 6) / 10 })),
       },
     });
+  } catch (err) { next(err); }
+});
+
+// Flat per-ticket rows for the Analytics export, filtered like the page
+// (date range on createdAt + assignee) plus optional status/client/category.
+router.get("/report", async (req, res, next) => {
+  try {
+    const now = new Date();
+    const to = req.query.to ? endOfDay(new Date(String(req.query.to))) : endOfDay(now);
+    const from = req.query.from ? startOfDay(new Date(String(req.query.from))) : startOfDay(subDays(now, 30));
+
+    const where: Prisma.TicketWhereInput = { createdAt: { gte: from, lte: to } };
+    if (req.query.assigneeId) where.assigneeId = String(req.query.assigneeId);
+    if (req.query.status) where.status = String(req.query.status) as Prisma.TicketWhereInput["status"];
+    if (req.query.clientId) where.clientId = String(req.query.clientId);
+    if (req.query.categoryId) where.categoryId = String(req.query.categoryId);
+
+    const [tickets, clients, categories, employees] = await Promise.all([
+      prisma.ticket.findMany({
+        where,
+        orderBy: { ticketNumber: "asc" },
+        take: 2000,
+        include: {
+          client: { select: { name: true } },
+          category: { select: { name: true } },
+          assignee: { select: { name: true } },
+          manager: { select: { name: true } },
+          reporter: { select: { name: true } },
+          timeEntries: { select: { minutes: true } },
+        },
+      }),
+      prisma.client.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+      prisma.category.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+      prisma.user.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    ]);
+
+    const toHours = (mins: number) => Math.round(mins / 6) / 10;
+    const rows = tickets.map((t) => ({
+      ticketNumber: t.ticketNumber,
+      title: t.title,
+      description: t.description ?? "",
+      status: t.status,
+      priority: t.priority,
+      frequency: t.frequency,
+      billable: t.billable,
+      invoiceStatus: t.invoiceStatus,
+      clientName: t.client?.name ?? "",
+      categoryName: t.category?.name ?? "",
+      assigneeName: t.assignee?.name ?? "",
+      managerName: t.manager?.name ?? "",
+      reporterName: t.reporter?.name ?? "",
+      periodLabel: t.periodLabel ?? "",
+      documentsRequired: t.documentsRequired ?? "",
+      startDate: t.startDate,
+      dueDate: t.dueDate,
+      completedAt: t.completedAt,
+      createdAt: t.createdAt,
+      targetHours: t.targetMinutes != null ? toHours(t.targetMinutes) : null,
+      loggedHours: toHours(t.timeEntries.reduce((sum, e) => sum + e.minutes, 0)),
+    }));
+
+    res.json({ ok: true, data: { tickets: rows, clients, categories, employees } });
   } catch (err) { next(err); }
 });
 
