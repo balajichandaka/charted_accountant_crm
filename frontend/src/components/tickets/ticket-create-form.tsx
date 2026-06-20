@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
+import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 
 type Frequency = CreateTicketFormValues["frequency"];
 type Priority = CreateTicketFormValues["priority"];
@@ -69,15 +70,19 @@ export function TicketCreateForm({
   clients,
   employees,
   managers,
+  canCreateClient = false,
 }: {
   categories: { id: string; name: string }[];
   templates: TemplateOption[];
   clients: { id: string; name: string }[];
   employees: { id: string; name: string }[];
   managers: { id: string; name: string }[];
+  canCreateClient?: boolean;
 }) {
   const router = useRouter();
   const [isCreating, setIsCreating] = useState(false);
+  const [clientOptions, setClientOptions] = useState(clients);
+  const [clientDialogOpen, setClientDialogOpen] = useState(false);
   const {
     register,
     handleSubmit,
@@ -158,6 +163,7 @@ export function TicketCreateForm({
   }
 
   return (
+    <>
     <form
       onSubmit={handleSubmit(onSubmit)}
       className="grid gap-6 lg:grid-cols-5"
@@ -230,13 +236,23 @@ export function TicketCreateForm({
               <div className="space-y-1.5">
                 <Label>Client *</Label>
                 <Combobox
-                  options={clients.map((c) => ({ value: c.id, label: c.name }))}
+                  options={clientOptions.map((c) => ({ value: c.id, label: c.name }))}
                   value={selectedClientId}
                   onChange={(v) => setValue("clientId", v, { shouldValidate: true })}
                   placeholder="Select client"
                   searchPlaceholder="Search clients…"
                   emptyText="No clients found."
                 />
+                {canCreateClient ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="h-auto p-0 text-xs"
+                    onClick={() => setClientDialogOpen(true)}
+                  >
+                    + Create client
+                  </Button>
+                ) : null}
                 {errors.clientId ? (
                   <p className="text-xs text-destructive">
                     {errors.clientId.message}
@@ -444,5 +460,18 @@ export function TicketCreateForm({
         </div>
       </div>
     </form>
+    {canCreateClient ? (
+      <ClientFormDialog
+        open={clientDialogOpen}
+        onOpenChange={setClientDialogOpen}
+        onCreated={(created) => {
+          setClientOptions((prev) =>
+            [...prev, created].sort((a, b) => a.name.localeCompare(b.name))
+          );
+          setValue("clientId", created.id, { shouldValidate: true });
+        }}
+      />
+    ) : null}
+  </>
   );
 }

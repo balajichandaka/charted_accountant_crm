@@ -51,11 +51,13 @@ export function ClientFormDialog({
   trigger,
   open: controlledOpen,
   onOpenChange,
+  onCreated,
 }: {
   client?: ClientLike;
   trigger?: React.ReactNode;
   open?: boolean;
   onOpenChange?: (o: boolean) => void;
+  onCreated?: (created: { id: string; name: string }) => void;
 }) {
   const router = useRouter();
   const [internalOpen, setInternalOpen] = useState(false);
@@ -95,7 +97,12 @@ export function ClientFormDialog({
     if (res.ok) {
       toast.success(isEdit ? "Client updated" : "Client created");
       setOpen(false);
-      if (!isEdit) reset();
+      if (!isEdit) {
+        reset();
+        if (res.data?.id) {
+          onCreated?.({ id: res.data.id, name: values.name });
+        }
+      }
       router.refresh();
     } else {
       toast.error(res.error);

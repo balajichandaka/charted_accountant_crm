@@ -11,30 +11,115 @@ type Recipient = {
   kind: "assignee" | "manager" | "client";
 };
 
-const SUBJECTS: Record<TicketEvent, (n: number, t: string) => string> = {
-  ASSIGNED: (n, t) => `[CA Practice] Ticket #${n} assigned to you — ${t}`,
-  CREATED: (n, t) => `[CA Practice] New ticket #${n} — ${t}`,
-  COMPLETED: (n, t) => `[CA Practice] Ticket #${n} completed — ${t}`,
+type TicketNotify = Pick<Ticket, "id" | "ticketNumber" | "title" | "description">;
+
+const FIRM_CONTACT = {
+  email: process.env.FIRM_CONTACT_EMAIL ?? "vscharanco@gmail.com",
+  phone: process.env.FIRM_CONTACT_PHONE ?? "6302846943",
+  escalationName: process.env.FIRM_ESCALATION_NAME ?? "Sai Charan",
+  escalationEmail: process.env.FIRM_ESCALATION_EMAIL ?? "vscharanca@gmail.com",
+  escalationPhone: process.env.FIRM_ESCALATION_PHONE ?? "9566278894",
 };
+
+/** Display name from EMAIL_FROM, e.g. `Alert from CA Charan <a@b.com>` → `Alert from CA Charan`. */
+function emailSenderName(): string {
+  const from = process.env.EMAIL_FROM ?? "CA Practice <no-reply@ca-practice.local>";
+  const match = from.match(/^([^<]+)</);
+  if (match) return match[1].trim().replace(/^"|"$/g, "");
+  return from.includes("@") ? from.split("@")[0]! : from;
+}
+
+function subjectFor(event: TicketEvent, ticket: TicketNotify, recipient: Recipient): string {
+  const sender = emailSenderName();
+  if (event === "CREATED" && recipient.kind === "client") {
+    return `${sender} :`;
+  }
+  if (event === "ASSIGNED") {
+    return `${sender} : Ticket #${ticket.ticketNumber} assigned to you — ${ticket.title}`;
+  }
+  if (event === "CREATED") {
+    return `${sender} : New ticket #${ticket.ticketNumber} — ${ticket.title}`;
+  }
+  return `${sender} : Ticket #${ticket.ticketNumber} completed — ${ticket.title}`;
+}
+
+function clientCreatedBody(recipient: Recipient, ticket: TicketNotify): string {
+  const work = ticket.description?.trim() || ticket.title;
+  const name = recipient.name.replace(/"/g, "");
+  return `<p>Hi &quot;${name}&quot;</p>
+<p>A new ticket has been created.</p>
+<p>Our team is handling the work assigned : &quot;${work.replace(/"/g, "")}&quot;</p>
+<p>Please contact for us any query regarding this to the below mentioned Mail and Number</p>
+<p>Contact Details :-</p>
+<p>Mail ID - ${FIRM_CONTACT.email}&nbsp;&nbsp;Phone - ${FIRM_CONTACT.phone}</p>
+<p>Escalation - ${FIRM_CONTACT.escalationName} - email - ${FIRM_CONTACT.escalationEmail}<br>
+Phone - ${FIRM_CONTACT.escalationPhone}</p>
+<p>Thanks for the opportunity to serve you</p>`;
+}
+
+function clientCreatedText(recipient: Recipient, ticket: TicketNotify): string {
+  const work = ticket.description?.trim() || ticket.title;
+  const name = recipient.name.replace(/"/g, "");
+  return `Hi "${name}"
+
+A new ticket has been created.
+
+Our team is handling the work assigned : "${work.replace(/"/g, "")}"
+
+Please contact for us any query regarding this to the below mentioned Mail and Number
+
+Contact Details :-
+
+Mail ID - ${FIRM_CONTACT.email}  Phone - ${FIRM_CONTACT.phone}
+
+Escalation - ${FIRM_CONTACT.escalationName} - email - ${FIRM_CONTACT.escalationEmail}
+Phone - ${FIRM_CONTACT.escalationPhone}
+
+Thanks for the opportunity to serve you`;
+}
 
 function bodyFor(
   event: TicketEvent,
   recipient: Recipient,
-  ticket: Pick<Ticket, "id" | "ticketNumber" | "title">,
+  ticket: TicketNotify,
   ticketUrl: string
-): string {
+): { html: string; text?: string } {
+  if (event === "CREATED" && recipient.kind === "client") {
+    return {
+      html: clientCreatedBody(recipient, ticket),
+      text: clientCreatedText(recipient, ticket),
+    };
+  }
+
   const heading =
     event === "CREATED"
       ? "A new ticket has been created"
       : event === "COMPLETED"
         ? "A ticket has been completed"
         : "A ticket has been assigned to you";
-  const link =
-    recipient.kind === "client"
-      ? `<p>Your accounting team is handling: <strong>#${ticket.ticketNumber} — ${ticket.title}</strong></p>`
-      : `<p><strong><a href="${ticketUrl}">#${ticket.ticketNumber} — ${ticket.title}</a></strong></p>
-         <p><a href="${ticketUrl}">View ticket →</a></p>`;
-  return `<p>Hi ${recipient.name},</p><p>${heading}:</p>${link}`;
+  return {
+    html: `<p>Hi ${recipient.name},</p><p>${heading}:</p>
+<p><strong><a href="${ticketUrl}">#${ticket.ticketNumber} — ${ticket.title}</a></strong></p>
+<p><a href="${ticketUrl}">View ticket →</a></p>`,
+  };
+}
+
+/** One email per address; on CREATED, prefer the client-facing template. */
+function dedupeRecipients(recipients: Recipient[], event: TicketEvent): Recipient[] {
+  const byEmail = new Map<string, Recipient>();
+  for (const r of recipients) {
+    if (!r.email) continue;
+    const key = r.email.toLowerCase();
+    const existing = byEmail.get(key);
+    if (!existing) {
+      byEmail.set(key, r);
+      continue;
+    }
+    if (event === "CREATED" && r.kind === "client") {
+      byEmail.set(key, r);
+    }
+  }
+  return [...byEmail.values()];
 }
 
 /**
@@ -42,26 +127,23 @@ function bodyFor(
  * Recipients are de-duplicated by email; failures never throw.
  */
 export async function notifyTicketEvent(
-  ticket: Pick<Ticket, "id" | "ticketNumber" | "title">,
+  ticket: TicketNotify,
   recipients: Recipient[],
   event: TicketEvent
 ) {
   const appUrl = process.env.APP_URL ?? "http://localhost:3000";
   const ticketUrl = `${appUrl}/tickets/${ticket.id}`;
 
-  const seen = new Set<string>();
-  for (const r of recipients) {
+  for (const r of dedupeRecipients(recipients, event)) {
     if (!r.email) continue;
-    const key = r.email.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    const subject = SUBJECTS[event](ticket.ticketNumber, ticket.title);
+    const subject = subjectFor(event, ticket, r);
+    const body = bodyFor(event, r, ticket, ticketUrl);
     try {
       const sent = await sendEmail({
         to: r.email,
         subject,
-        html: bodyFor(event, r, ticket, ticketUrl),
+        html: body.html,
+        text: body.text,
       });
       if (r.userId) {
         await prisma.notificationLog.create({
@@ -93,7 +175,7 @@ export async function notifyTicketEvent(
 
 /** Backwards-compatible helper: notify a single assignee. */
 export async function notifyTicketAssigned(
-  ticket: Pick<Ticket, "id" | "ticketNumber" | "title">,
+  ticket: TicketNotify,
   assignee: Pick<User, "id" | "name" | "email">
 ) {
   await notifyTicketEvent(
@@ -118,6 +200,13 @@ export async function notifyTicketParticipants(
   if (!ticket) return;
 
   const recipients: Recipient[] = [];
+  // Client first so dedupe keeps the client template when emails overlap with staff.
+  if (ticket.client?.email)
+    recipients.push({
+      name: ticket.client.name,
+      email: ticket.client.email,
+      kind: "client",
+    });
   if (ticket.assignee)
     recipients.push({
       userId: ticket.assignee.id,
@@ -131,12 +220,6 @@ export async function notifyTicketParticipants(
       name: ticket.manager.name,
       email: ticket.manager.email,
       kind: "manager",
-    });
-  if (ticket.client?.email)
-    recipients.push({
-      name: ticket.client.name,
-      email: ticket.client.email,
-      kind: "client",
     });
 
   await notifyTicketEvent(ticket, recipients, event);

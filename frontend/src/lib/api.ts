@@ -1,20 +1,23 @@
-import { redirect } from "next/navigation";
+import { signOut } from "@/lib/auth";
 
 export const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:4000";
 
 type ApiResponse<T> = { ok: true; data: T } | { ok: false; error: string };
 
+/** Clear NextAuth session before login — avoids redirect loops with stale JWTs. */
+async function redirectToSignIn() {
+  await signOut({ redirectTo: "/login?reauth=1" });
+}
+
 export async function apiGet<T>(path: string, token?: string): Promise<T> {
-  // No token means not authenticated — send to login instead of crashing.
-  if (!token) redirect("/login");
+  if (!token) await redirectToSignIn();
 
   const res = await fetch(`${BACKEND_URL}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });
 
-  // 401 from backend means token expired or invalid — redirect to login.
-  if (res.status === 401) redirect("/login");
+  if (res.status === 401) await redirectToSignIn();
 
   const json: ApiResponse<T> = await res.json();
   if (!json.ok) throw new Error(json.error);

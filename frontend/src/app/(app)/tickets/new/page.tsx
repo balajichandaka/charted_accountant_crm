@@ -1,11 +1,8 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { requireUser } from "@/lib/session";
-import { getToken } from "@/lib/session";
+import { requireUser, getToken } from "@/lib/session";
 import { apiGet } from "@/lib/api";
 import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/empty-state";
-import { Button } from "@/components/ui/button";
 import { TicketCreateForm } from "@/components/tickets/ticket-create-form";
 
 type Template = {
@@ -28,7 +25,7 @@ type NewTicketFormData = {
 };
 
 export default async function NewTicketPage() {
-  await requireUser();
+  const user = await requireUser();
   const token = await getToken();
 
   const { categories, templates, clients, employees, managers } =
@@ -46,33 +43,23 @@ export default async function NewTicketPage() {
         title="New ticket"
         description="Create work for a client and assign it to your team."
       />
-      {clients.length === 0 ? (
-        <EmptyState
-          title="No active clients"
-          description="Add a client before creating tickets."
-        >
-          <Button asChild>
-            <Link href="/clients">Go to Clients</Link>
-          </Button>
-        </EmptyState>
-      ) : (
-        <TicketCreateForm
-          categories={categories}
-          templates={(templates as unknown as import("@/components/tickets/ticket-create-form").TemplateOption[]).map((t) => ({
-            id: t.id,
-            name: t.name,
-            categoryId: t.categoryId,
-            documentsRequired: t.documentsRequired,
-            defaultFrequency: t.defaultFrequency,
-            defaultBillable: t.defaultBillable,
-            defaultPriority: t.defaultPriority,
-            subtasks: t.subtasks,
-          }))}
-          clients={clients}
-          employees={employees}
-          managers={managers}
-        />
-      )}
+      <TicketCreateForm
+        categories={categories}
+        templates={(templates as unknown as import("@/components/tickets/ticket-create-form").TemplateOption[]).map((t) => ({
+          id: t.id,
+          name: t.name,
+          categoryId: t.categoryId,
+          documentsRequired: t.documentsRequired,
+          defaultFrequency: t.defaultFrequency,
+          defaultBillable: t.defaultBillable,
+          defaultPriority: t.defaultPriority,
+          subtasks: t.subtasks,
+        }))}
+        clients={clients}
+        employees={employees}
+        managers={managers}
+        canCreateClient={user.role === "CA"}
+      />
     </>
   );
 }

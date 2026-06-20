@@ -17,9 +17,11 @@ export const authConfig = {
 
       if (isLoginPage) {
         // Only redirect away from login if the session is fully valid.
-        if (isLoggedIn && hasBackendToken)
+        if (isLoggedIn && hasBackendToken) {
+          // Avoid loops when an expired backend token bounces back from a protected page.
+          if (nextUrl.searchParams.get("reauth") === "1") return true;
           return Response.redirect(new URL("/dashboard", nextUrl));
-        // Invalid/stale session: stay on login so user can re-authenticate.
+        }
         return true;
       }
 

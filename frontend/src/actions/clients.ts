@@ -9,7 +9,10 @@ export async function createClient(input: unknown): Promise<ActionResult<{ id: s
   await requireCA();
   const token = await getToken();
   const result = await apiMutate<{ id: string }>("POST", "/api/clients", input, token);
-  if (result.ok) revalidatePath("/clients");
+  if (result.ok) {
+    revalidatePath("/clients");
+    revalidatePath("/tickets/new");
+  }
   return result.ok
     ? { ok: true, data: result.data }
     : { ok: false, error: result.error };
