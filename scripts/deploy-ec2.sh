@@ -56,6 +56,23 @@ else
   "$COMPOSE" -f "$COMPOSE_FILE" build --progress=plain backend
   "$COMPOSE" -f "$COMPOSE_FILE" build --progress=plain frontend
 fi
+
+if [ "${WRITE_ENV_PROFILE:-}" = "prod" ]; then
+  echo "==> Starting Postgres for migrations"
+  "$COMPOSE" -f "$COMPOSE_FILE" up -d db
+  echo "==> Waiting for Postgres"
+  for _ in $(seq 1 30); do
+    if "$COMPOSE" -f "$COMPOSE_FILE" exec -T db pg_isready -U ca -d ca_app >/dev/null 2>&1; then
+      break
+    fi
+    sleep 2
+  done
+  echo "==> Database migrations"
+  "$COMPOSE" -f "$COMPOSE_FILE" run --rm --no-deps backend npx prisma migrate deploy
+  echo "==> Admin bootstrap (if needed)"
+  "$COMPOSE" -f "$COMPOSE_FILE" run --rm --no-deps backend npx prisma db seed
+fi
+
 "$COMPOSE" -f "$COMPOSE_FILE" up -d
 
 echo "==> Pruning dangling images"

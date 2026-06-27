@@ -8,4 +8,4 @@ COPY . .
 RUN npx prisma generate
 RUN npx tsc
 EXPOSE 4000
-CMD ["sh", "-c", "npx prisma migrate deploy && npx prisma db seed && node dist/index.js"]
+CMD ["node", "dist/index.js"]
