@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth, signOut } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 
 export type SessionUser = {
   id: string;
@@ -22,9 +22,7 @@ export async function getToken(): Promise<string | undefined> {
 export async function requireUser(): Promise<SessionUser> {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (!session.backendToken) {
-    await signOut({ redirectTo: "/login?reauth=1" });
-  }
+  if (!session.backendToken) redirect("/api/auth/clear-session");
   return session.user as SessionUser;
 }
 

@@ -1,6 +1,26 @@
 import type { NextAuthConfig } from "next-auth";
 import type { Role } from "@/types/domain";
 
+function decodeJwtPayload(token: string): { exp?: number } | null {
+  try {
+    const part = token.split(".")[1];
+    if (!part) return null;
+    const json = atob(part.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(json) as { exp?: number };
+  } catch {
+    return null;
+  }
+}
+
+function isBackendTokenUsable(token: string): boolean {
+  const payload = decodeJwtPayload(token);
+  if (!payload) return false;
+  if (typeof payload.exp === "number" && payload.exp * 1000 <= Date.now()) {
+    return false;
+  }
+  return true;
+}
+
 export const authConfig = {
   pages: { signIn: "/login" },
   session: { strategy: "jwt" },
@@ -9,16 +29,13 @@ export const authConfig = {
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
-      // backendToken is our indicator of a valid, post-fix session.
-      // Old sessions (pre-fix cookies) won't have it and must re-login.
-      const hasBackendToken = !!(auth as { backendToken?: string } | null)
-        ?.backendToken;
+      const hasBackendToken = !!auth?.backendToken;
       const isLoginPage = nextUrl.pathname === "/login";
 
       if (isLoginPage) {
         // Only redirect away from login if the session is fully valid.
         if (isLoggedIn && hasBackendToken) {
-          // Avoid loops when an expired backend token bounces back from a protected page.
+          // Stay on login while recovering from a stale/invalid backend token.
           if (nextUrl.searchParams.get("reauth") === "1") return true;
           return Response.redirect(new URL("/dashboard", nextUrl));
         }
@@ -26,15 +43,19 @@ export const authConfig = {
       }
 
       // Protected page: require both a user AND a backend token.
-      // Stale sessions (no backendToken) are treated as unauthenticated.
       return isLoggedIn && hasBackendToken;
     },
     jwt({ token, user }) {
       if (user) {
         token.id = user.id as string;
         token.role = user.role as Role;
-        // Store the backend JWT so RSC pages can authenticate against the API.
         token.backendToken = user.backendToken;
+      }
+      if (
+        typeof token.backendToken === "string" &&
+        !isBackendTokenUsable(token.backendToken)
+      ) {
+        delete token.backendToken;
       }
       return token;
     },
