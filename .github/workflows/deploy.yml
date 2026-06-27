@@ -29,6 +29,7 @@ jobs:
       deploy_branch: ${{ steps.pick.outputs.deploy_branch }}
       github_environment: ${{ steps.pick.outputs.github_environment }}
       write_env_profile: ${{ steps.pick.outputs.write_env_profile }}
+      machine_label: ${{ steps.pick.outputs.machine_label }}
     steps:
       - id: pick
         run: |
@@ -37,10 +38,25 @@ jobs:
           if [ "$BRANCH" = "prod" ]; then
             echo "github_environment=production" >> "$GITHUB_OUTPUT"
             echo "write_env_profile=prod" >> "$GITHUB_OUTPUT"
+            echo "machine_label=Production EC2 (prod branch, self-hosted Postgres)" >> "$GITHUB_OUTPUT"
           else
             echo "github_environment=staging" >> "$GITHUB_OUTPUT"
             echo "write_env_profile=staging" >> "$GITHUB_OUTPUT"
+            echo "machine_label=Staging EC2 (feature_1.0 branch, Render Postgres)" >> "$GITHUB_OUTPUT"
           fi
+
+          echo "══════════════════════════════════════════"
+          echo "  DEPLOY TARGET (resolved)"
+          echo "══════════════════════════════════════════"
+          echo "  Branch:       $BRANCH"
+          if [ "$BRANCH" = "prod" ]; then
+            echo "  Environment:  production"
+            echo "  Machine:      Production EC2 (prod branch, self-hosted Postgres)"
+          else
+            echo "  Environment:  staging"
+            echo "  Machine:      Staging EC2 (feature_1.0 branch, Render Postgres)"
+          fi
+          echo "══════════════════════════════════════════"
 
   deploy:
     name: Deploy (${{ needs.resolve.outputs.deploy_branch }})
@@ -52,11 +68,32 @@ jobs:
       DEPLOY_BRANCH: ${{ needs.resolve.outputs.deploy_branch }}
       WRITE_ENV_PROFILE: ${{ needs.resolve.outputs.write_env_profile }}
     steps:
+      - name: Log deploy target
+        run: |
+          APP_DIR="${{ secrets.EC2_APP_DIR }}"
+          if [ -z "$APP_DIR" ]; then APP_DIR="$HOME/charted_accountant_crm"; fi
+          echo "══════════════════════════════════════════"
+          echo "  DEPLOY TARGET (GitHub Actions)"
+          echo "══════════════════════════════════════════"
+          echo "  Branch:       ${{ needs.resolve.outputs.deploy_branch }}"
+          echo "  Environment:  ${{ needs.resolve.outputs.github_environment }}"
+          echo "  Profile:      ${{ needs.resolve.outputs.write_env_profile }}"
+          echo "  Machine:      ${{ needs.resolve.outputs.machine_label }}"
+          echo "  SSH user:     ${{ secrets.EC2_USER }}"
+          echo "  SSH host:     ${{ secrets.EC2_HOST }}"
+          echo "  App dir:      $APP_DIR"
+          echo "══════════════════════════════════════════"
+          echo "After SSH connects, logs will show this EC2 public IP."
+          echo "Compare prod vs staging runs — IPs must differ."
+          echo "══════════════════════════════════════════"
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         env:
           DEPLOY_BRANCH: ${{ env.DEPLOY_BRANCH }}
           WRITE_ENV_PROFILE: ${{ env.WRITE_ENV_PROFILE }}
+          DEPLOY_ENV: ${{ needs.resolve.outputs.github_environment }}
+          DEPLOY_MACHINE: ${{ needs.resolve.outputs.machine_label }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
@@ -67,13 +104,27 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           command_timeout: 60m
-          envs: DEPLOY_BRANCH,WRITE_ENV_PROFILE,POSTGRES_PASSWORD,ADMIN_EMAIL,ADMIN_PASSWORD,ADMIN_NAME,APP_PUBLIC_URL
+          envs: DEPLOY_BRANCH,WRITE_ENV_PROFILE,DEPLOY_ENV,DEPLOY_MACHINE,POSTGRES_PASSWORD,ADMIN_EMAIL,ADMIN_PASSWORD,ADMIN_NAME,APP_PUBLIC_URL
           script_stop: true
           script: |
             set -euo pipefail
             APP_DIR="${{ secrets.EC2_APP_DIR }}"
             if [ -z "${APP_DIR}" ]; then APP_DIR="$HOME/charted_accountant_crm"; fi
             export APP_DIR
+
+            PUBLIC_IP="$(curl -sf http://checkip.amazonaws.com 2>/dev/null || hostname -I | awk '{print $1}')"
+
+            echo "══════════════════════════════════════════"
+            echo "  CONNECTED TO EC2"
+            echo "══════════════════════════════════════════"
+            echo "  GitHub env:   ${DEPLOY_ENV:-unknown}"
+            echo "  Machine:      ${DEPLOY_MACHINE:-unknown}"
+            echo "  Branch:       ${DEPLOY_BRANCH:-unknown}"
+            echo "  Profile:      ${WRITE_ENV_PROFILE:-unknown}"
+            echo "  App dir:      $APP_DIR"
+            echo "  Hostname:     $(hostname)"
+            echo "  Public IP:    ${PUBLIC_IP:-unknown}"
+            echo "══════════════════════════════════════════"
 
             if [ ! -d "$APP_DIR/.git" ]; then
               echo "ERROR: Repo not found at $APP_DIR. Run 'Bootstrap EC2' for environment '${{ needs.resolve.outputs.github_environment }}' first."
@@ -86,5 +137,5 @@ jobs:
             fi
 
             cd "$APP_DIR"
-            export WRITE_ENV_PROFILE
+            export WRITE_ENV_PROFILE DEPLOY_ENV DEPLOY_MACHINE
             DEPLOY_BRANCH="$DEPLOY_BRANCH" APP_DIR="$APP_DIR" ./scripts/deploy-ec2.sh
