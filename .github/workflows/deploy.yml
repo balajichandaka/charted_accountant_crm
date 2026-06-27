@@ -34,15 +34,36 @@ jobs:
     steps:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_BRANCH: ${{ env.DEPLOY_BRANCH }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_NAME: ${{ secrets.ADMIN_NAME }}
+          APP_PUBLIC_URL: ${{ secrets.APP_PUBLIC_URL }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: DEPLOY_BRANCH,POSTGRES_PASSWORD,ADMIN_EMAIL,ADMIN_PASSWORD,ADMIN_NAME,APP_PUBLIC_URL
           script_stop: true
           script: |
             set -euo pipefail
             APP_DIR="${{ secrets.EC2_APP_DIR }}"
             if [ -z "${APP_DIR}" ]; then APP_DIR="$HOME/charted_accountant_crm"; fi
+            export APP_DIR
+
+            if [ ! -d "$APP_DIR/.git" ]; then
+              echo "ERROR: Repo not found at $APP_DIR. Run 'Bootstrap EC2 (one-time)' workflow first."
+              exit 1
+            fi
+
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "ERROR: Docker not installed. Run 'Bootstrap EC2 (one-time)' workflow first."
+              exit 1
+            fi
+
             cd "$APP_DIR"
-            chmod +x scripts/deploy-ec2.sh scripts/compose.sh
-            DEPLOY_BRANCH="${{ env.DEPLOY_BRANCH }}" APP_DIR="$APP_DIR" ./scripts/deploy-ec2.sh
+            chmod +x scripts/deploy-ec2.sh scripts/compose.sh scripts/write-env.sh
+            ./scripts/write-env.sh
+            DEPLOY_BRANCH="$DEPLOY_BRANCH" APP_DIR="$APP_DIR" ./scripts/deploy-ec2.sh

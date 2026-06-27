@@ -1,12 +1,15 @@
 # GitHub Actions — EC2 Deploy Setup
 
-Automated deploy: push to `prod` → CI runs → SSH to EC2 → pull code → rebuild Docker containers.
+Automated deploy: push to `prod` → CI runs → SSH to EC2 → write `.env` → rebuild Docker containers.
 
-The `prod` branch uses **self-hosted PostgreSQL** on EC2 (Docker volume). The `feature_1.0` branch uses external Render Postgres.
+The `prod` branch uses **self-hosted PostgreSQL** on EC2 (Docker volume).
+
+**New server?** See [docs/GITHUB-ACTIONS-NEW-MACHINE.md](../docs/GITHUB-ACTIONS-NEW-MACHINE.md).
 
 Workflow files:
 
 - `.github/workflows/ci.yml` — build + lint
+- `.github/workflows/bootstrap-ec2.yml` — **one-time** Docker + clone on new EC2
 - `.github/workflows/deploy.yml` — deploy after CI passes
 
 ---
@@ -15,12 +18,24 @@ Workflow files:
 
 Go to **GitHub repo → Settings → Secrets and variables → Actions → New repository secret**
 
+### SSH
+
 | Secret | Value | Example |
 |--------|-------|---------|
 | `EC2_HOST` | EC2 public IP or domain | `34.236.143.82` |
 | `EC2_USER` | SSH user | `ec2-user` |
 | `EC2_SSH_KEY` | Full contents of your `.pem` private key | `-----BEGIN RSA PRIVATE KEY-----...` |
 | `EC2_APP_DIR` | Optional app path on EC2 | `~/charted_accountant_crm` |
+
+### Application (written to `.env` on each deploy)
+
+| Secret | Value | Example |
+|--------|-------|---------|
+| `POSTGRES_PASSWORD` | Postgres password | strong random string |
+| `ADMIN_EMAIL` | CA admin login | `admin@cafirmops.in` |
+| `ADMIN_PASSWORD` | CA admin password | strong password |
+| `ADMIN_NAME` | Optional display name | `Sai Charan` |
+| `APP_PUBLIC_URL` | Public site URL | `https://cafirmops.in` |
 
 To copy the PEM key:
 
@@ -97,21 +112,15 @@ git fetch origin prod
 
 ---
 
-## 4. EC2 one-time checklist
+## 4. New machine checklist (GitHub Actions only)
 
-```bash
-# Docker works
-docker ps
+1. Launch EC2 + Elastic IP + security group (22, 80, 443)
+2. Add all secrets from §1
+3. Run **Bootstrap EC2 (one-time)** workflow
+4. Run **Deploy to EC2** workflow (or push to `prod`)
+5. Configure DNS + Nginx + SSL on EC2 (manual, one-time)
 
-# Repo exists
-ls ~/charted_accountant_crm/scripts/deploy-ec2.sh
-
-# Manual deploy test
-cd ~/charted_accountant_crm
-DEPLOY_BRANCH=prod ./scripts/deploy-ec2.sh
-```
-
-Nginx and SSL are **not** managed by GitHub Actions — they stay on the host. Only Docker containers are rebuilt.
+Nginx and SSL are **not** managed by GitHub Actions — only Docker containers are rebuilt on deploy.
 
 ---
 
@@ -120,7 +129,8 @@ Nginx and SSL are **not** managed by GitHub Actions — they stay on the host. O
 | Trigger | Branch deployed |
 |---------|-----------------|
 | Push to `prod` | `prod` |
-| Manual: Actions → Deploy to EC2 → Run workflow | Choose branch |
+| Manual: **Bootstrap EC2 (one-time)** | Installs Docker + clones repo |
+| Manual: **Deploy to EC2** → Run workflow | Choose branch |
 
 Monitor: **GitHub → Actions** tab.
 
