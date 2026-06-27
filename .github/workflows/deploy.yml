@@ -62,7 +62,7 @@ jobs:
     name: Deploy (${{ needs.resolve.outputs.deploy_branch }})
     needs: [ci, resolve]
     runs-on: ubuntu-latest
-    timeout-minutes: 65
+    timeout-minutes: 130
     environment: ${{ needs.resolve.outputs.github_environment }}
     env:
       DEPLOY_BRANCH: ${{ needs.resolve.outputs.deploy_branch }}
@@ -132,7 +132,7 @@ jobs:
           host: ${{ secrets.EC2_HOST || vars.EC2_HOST }}
           username: ${{ secrets.EC2_USER || vars.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY || vars.EC2_SSH_KEY }}
-          command_timeout: 60m
+          command_timeout: 2h
           envs: DEPLOY_BRANCH,WRITE_ENV_PROFILE,DEPLOY_ENV,DEPLOY_MACHINE,POSTGRES_PASSWORD,ADMIN_EMAIL,ADMIN_PASSWORD,ADMIN_NAME,APP_PUBLIC_URL
           script_stop: true
           script: |
