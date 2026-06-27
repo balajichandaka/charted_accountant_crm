@@ -84,6 +84,5 @@ jobs:
             fi
 
             cd "$APP_DIR"
-            chmod +x scripts/deploy-ec2.sh scripts/compose.sh scripts/write-env.sh 2>/dev/null || true
-            ./scripts/write-env.sh
+            export WRITE_ENV_PROFILE
             DEPLOY_BRANCH="$DEPLOY_BRANCH" APP_DIR="$APP_DIR" ./scripts/deploy-ec2.sh

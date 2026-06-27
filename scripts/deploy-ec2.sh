@@ -18,14 +18,14 @@ if [ ! -f "$COMPOSE_FILE" ]; then
   exit 1
 fi
 
-if [ ! -f ".env" ]; then
-  echo "Note: no .env — docker-compose embedded defaults will be used."
-fi
-
 echo "==> Pulling latest code ($BRANCH)"
 git fetch origin "$BRANCH"
 git reset --hard "origin/$BRANCH"
 chmod +x scripts/deploy-ec2.sh scripts/compose.sh scripts/write-env.sh 2>/dev/null || true
+
+if [ -f scripts/write-env.sh ]; then
+  ./scripts/write-env.sh
+fi
 
 COMPOSE="./scripts/compose.sh"
 
