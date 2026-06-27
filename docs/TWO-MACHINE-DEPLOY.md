@@ -98,3 +98,32 @@ Both machines need **22** (SSH from GitHub Actions), **80**, **443**.
 Each machine's `EC2_HOST` secret must match its Elastic IP.
 
 See also: [GITHUB-ACTIONS-NEW-MACHINE.md](./GITHUB-ACTIONS-NEW-MACHINE.md)
+
+---
+
+## Troubleshooting: prod and staging deploy to the same machine
+
+The workflow picks the machine from **GitHub environment secrets**, not from the branch name alone. If both deploys hit the same box, `EC2_HOST` is the same (or only set once at **repository** level).
+
+**Fix:**
+
+1. **Settings → Environments** — create two environments named exactly **`production`** and **`staging`** (not `prod`).
+2. Set **different** `EC2_HOST` in each:
+
+   | Environment | `EC2_HOST` |
+   |-------------|------------|
+   | **staging** | Old machine, e.g. `34.236.143.82` |
+   | **production** | New machine, e.g. `50.17.16.46` |
+
+3. Each environment also needs its own `EC2_USER` and `EC2_SSH_KEY` (`.pem` for that instance).
+4. **Remove** `EC2_HOST`, `EC2_USER`, and `EC2_SSH_KEY` from **Repository secrets** if they exist — otherwise it is easy to think both envs are configured when only the repo secret is used.
+
+After the next deploy, check the Actions log for:
+
+```text
+==> This EC2 instance public IP:
+50.17.16.46
+```
+
+- **Deploy (feature_1.0)** should show the **old** IP.
+- **Deploy (prod)** should show **50.17.16.46**.

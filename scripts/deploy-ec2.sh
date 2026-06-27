@@ -18,6 +18,9 @@ if [ ! -f "$COMPOSE_FILE" ]; then
   exit 1
 fi
 
+PUBLIC_IP="$(curl -sf http://checkip.amazonaws.com 2>/dev/null || hostname -I | awk '{print $1}')"
+echo "==> Deploy on EC2: env=${DEPLOY_ENV:-unknown} branch=$BRANCH profile=${WRITE_ENV_PROFILE:-unknown} ip=${PUBLIC_IP:-unknown} dir=$APP_DIR"
+
 echo "==> Pulling latest code ($BRANCH)"
 git fetch origin "$BRANCH"
 git reset --hard "origin/$BRANCH"
