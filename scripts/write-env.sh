@@ -1,16 +1,34 @@
 #!/usr/bin/env bash
-# Write repo-root .env from environment (GitHub Actions secrets → SSH env).
+# Write repo-root .env from GitHub Actions secrets (profile: prod | staging).
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-$HOME/charted_accountant_crm}"
 ENV_FILE="$APP_DIR/.env"
+PROFILE="${WRITE_ENV_PROFILE:-prod}"
 
+if [ "$PROFILE" = "staging" ]; then
+  if [ -n "${APP_PUBLIC_URL:-}" ]; then
+    umask 077
+    printf '%s=%s\n' APP_PUBLIC_URL "$APP_PUBLIC_URL" > "$ENV_FILE"
+    printf '%s=%s\n' APP_PORT "${APP_PORT:-3000}" >> "$ENV_FILE"
+    echo "Wrote staging $ENV_FILE (APP_PUBLIC_URL only)"
+    exit 0
+  fi
+  if [ -f "$ENV_FILE" ]; then
+    echo "Using existing staging $ENV_FILE"
+    exit 0
+  fi
+  echo "Staging: no APP_PUBLIC_URL secret — using docker-compose defaults"
+  exit 0
+fi
+
+# prod profile — full .env for self-hosted Postgres + admin bootstrap
 if [ -z "${POSTGRES_PASSWORD:-}" ] || [ -z "${ADMIN_EMAIL:-}" ] || [ -z "${ADMIN_PASSWORD:-}" ]; then
   if [ -f "$ENV_FILE" ]; then
     echo "Using existing $ENV_FILE"
     exit 0
   fi
-  echo "ERROR: Set GitHub secrets POSTGRES_PASSWORD, ADMIN_EMAIL, ADMIN_PASSWORD (or create $ENV_FILE on EC2)."
+  echo "ERROR: production needs POSTGRES_PASSWORD, ADMIN_EMAIL, ADMIN_PASSWORD secrets (or $ENV_FILE on EC2)."
   exit 1
 fi
 
@@ -26,4 +44,4 @@ umask 077
   printf '%s=%s\n' APP_PORT "${APP_PORT:-3000}"
 } > "$ENV_FILE"
 
-echo "Wrote $ENV_FILE from deploy environment"
+echo "Wrote production $ENV_FILE from deploy secrets"

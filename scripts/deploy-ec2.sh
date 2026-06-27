@@ -19,8 +19,7 @@ if [ ! -f "$COMPOSE_FILE" ]; then
 fi
 
 if [ ! -f ".env" ]; then
-  echo "Missing .env — GitHub Actions should run scripts/write-env.sh first."
-  exit 1
+  echo "Note: no .env — docker-compose embedded defaults will be used."
 fi
 
 echo "==> Pulling latest code ($BRANCH)"

@@ -1,19 +1,27 @@
-# One-time setup on a fresh EC2 instance: Docker, git, clone prod branch.
-# Run manually once per new server, then use "Deploy to EC2" for all app updates.
-name: Bootstrap EC2 (one-time)
+# Bootstrap a fresh EC2 instance (one per GitHub environment / machine).
+# Run once for production (prod branch) and once for staging (feature_1.0).
+name: Bootstrap EC2
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Target machine (GitHub environment)
+        required: true
+        type: choice
+        options:
+          - production
+          - staging
 
 concurrency:
-  group: bootstrap-ec2
+  group: bootstrap-ec2-${{ github.event.inputs.environment }}
   cancel-in-progress: false
 
 jobs:
   bootstrap:
-    name: Bootstrap new EC2
+    name: Bootstrap (${{ github.event.inputs.environment }})
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ github.event.inputs.environment }}
     steps:
       - name: Install Docker and clone repo
         uses: appleboy/ssh-action@v1.2.0
@@ -27,7 +35,14 @@ jobs:
             APP_DIR="${{ secrets.EC2_APP_DIR }}"
             if [ -z "${APP_DIR}" ]; then APP_DIR="$HOME/charted_accountant_crm"; fi
             REPO_URL="https://github.com/balajichandaka/charted_accountant_crm.git"
-            DEPLOY_BRANCH=prod
+
+            if [ "${{ github.event.inputs.environment }}" = "production" ]; then
+              DEPLOY_BRANCH=prod
+              BOOTSTRAP_REF=prod
+            else
+              DEPLOY_BRANCH=feature_1.0
+              BOOTSTRAP_REF=feature_1.0
+            fi
 
             if command -v docker >/dev/null 2>&1 && [ -d "$APP_DIR/.git" ]; then
               echo "Docker and repo already present at $APP_DIR — skipping bootstrap."
@@ -35,9 +50,10 @@ jobs:
             fi
 
             TMP=$(mktemp)
-            curl -fsSL "https://raw.githubusercontent.com/balajichandaka/charted_accountant_crm/prod/scripts/ec2-bootstrap.sh" -o "$TMP"
+            curl -fsSL "https://raw.githubusercontent.com/balajichandaka/charted_accountant_crm/${BOOTSTRAP_REF}/scripts/ec2-bootstrap.sh" -o "$TMP"
             chmod +x "$TMP"
             REPO_URL="$REPO_URL" APP_DIR="$APP_DIR" DEPLOY_BRANCH="$DEPLOY_BRANCH" "$TMP"
             rm -f "$TMP"
 
-            echo "Bootstrap complete. Next: run 'Deploy to EC2' workflow (writes .env from secrets and starts containers)."
+            echo "Bootstrap complete for $DEPLOY_BRANCH on ${{ github.event.inputs.environment }}."
+            echo "Next: run 'Deploy to EC2' with branch $DEPLOY_BRANCH (or push to that branch)."

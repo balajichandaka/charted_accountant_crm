@@ -1,8 +1,8 @@
 # GitHub Actions — EC2 Deploy Setup
 
-Automated deploy: push to `prod` → CI runs → SSH to EC2 → write `.env` → rebuild Docker containers.
+Automated deploy: push to `prod` or `feature_1.0` → CI → SSH to the matching EC2 environment → rebuild containers.
 
-The `prod` branch uses **self-hosted PostgreSQL** on EC2 (Docker volume).
+**Two machines?** See [docs/TWO-MACHINE-DEPLOY.md](../docs/TWO-MACHINE-DEPLOY.md) — `prod` → **production** env, `feature_1.0` → **staging** env.
 
 **New server?** See [docs/GITHUB-ACTIONS-NEW-MACHINE.md](../docs/GITHUB-ACTIONS-NEW-MACHINE.md).
 
@@ -47,21 +47,24 @@ Paste the entire file including `BEGIN` and `END` lines.
 
 ---
 
-## 2. GitHub environment (optional)
+## 2. GitHub environments (required for two machines)
 
-`deploy.yml` uses the `production` environment. On first run, GitHub may prompt you to create it.
+Create two environments under **Settings → Environments**:
 
-**Settings → Environments → production**
+| Environment | Branch | Machine |
+|-------------|--------|---------|
+| `production` | `prod` | New EC2 (self-hosted Postgres) |
+| `staging` | `feature_1.0` | Old EC2 (Render Postgres) |
 
-- Add the same secrets there if you use environment-scoped secrets
-- Optionally enable **Required reviewers** for manual approval before deploy
+Add the secrets from §1 to **each environment** with that machine's `EC2_HOST` and key. Production also needs `POSTGRES_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`.
+
+Optional: enable **Required reviewers** on `production` only.
 
 ---
 
-## 3. EC2 must pull code from GitHub
+## 4. EC2 must pull code from GitHub
 
 GitHub Actions SSHs into EC2 and runs `git fetch` + `git reset --hard origin/<branch>`.
-The EC2 instance needs read access to the repo.
 
 ### Option A — Public repository
 
@@ -126,11 +129,12 @@ Nginx and SSL are **not** managed by GitHub Actions — only Docker containers a
 
 ## 5. How deploy is triggered
 
-| Trigger | Branch deployed |
-|---------|-----------------|
-| Push to `prod` | `prod` |
-| Manual: **Bootstrap EC2 (one-time)** | Installs Docker + clones repo |
-| Manual: **Deploy to EC2** → Run workflow | Choose branch |
+| Trigger | Branch | Target environment |
+|---------|--------|-------------------|
+| Push to `prod` | `prod` | **production** (new machine) |
+| Push to `feature_1.0` | `feature_1.0` | **staging** (old machine) |
+| Manual: **Bootstrap EC2** | — | Choose production or staging |
+| Manual: **Deploy to EC2** | chosen branch | matching environment |
 
 Monitor: **GitHub → Actions** tab.
 
