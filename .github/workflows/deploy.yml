@@ -87,6 +87,28 @@ jobs:
           echo "Compare prod vs staging runs — IPs must differ."
           echo "══════════════════════════════════════════"
 
+      - name: Validate SSH secrets
+        run: |
+          ENV="${{ needs.resolve.outputs.github_environment }}"
+          missing=""
+          if [ -z "${{ secrets.EC2_HOST }}" ]; then missing="${missing} EC2_HOST"; fi
+          if [ -z "${{ secrets.EC2_USER }}" ]; then missing="${missing} EC2_USER"; fi
+          if [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then missing="${missing} EC2_SSH_KEY"; fi
+          if [ -n "$missing" ]; then
+            echo "ERROR: Missing secrets for GitHub environment '$ENV':$missing"
+            echo ""
+            echo "Add them under: Settings → Environments → $ENV → Environment secrets"
+            echo ""
+            if [ "$ENV" = "production" ]; then
+              echo "  EC2_HOST = 50.17.16.46  (new production machine)"
+            else
+              echo "  EC2_HOST = 34.236.143.82  (staging / old machine)"
+            fi
+            echo "  EC2_USER = ec2-user"
+            echo "  EC2_SSH_KEY = contents of the .pem file for that machine"
+            exit 1
+          fi
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         env:

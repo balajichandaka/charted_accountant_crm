@@ -23,6 +23,19 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment }}
     steps:
+      - name: Validate SSH secrets
+        run: |
+          ENV="${{ github.event.inputs.environment }}"
+          missing=""
+          if [ -z "${{ secrets.EC2_HOST }}" ]; then missing="${missing} EC2_HOST"; fi
+          if [ -z "${{ secrets.EC2_USER }}" ]; then missing="${missing} EC2_USER"; fi
+          if [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then missing="${missing} EC2_SSH_KEY"; fi
+          if [ -n "$missing" ]; then
+            echo "ERROR: Missing secrets for GitHub environment '$ENV':$missing"
+            echo "Add them under: Settings → Environments → $ENV → Environment secrets"
+            exit 1
+          fi
+
       - name: Install Docker and clone repo
         uses: appleboy/ssh-action@v1.2.0
         with:
