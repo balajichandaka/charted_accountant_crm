@@ -1,10 +1,15 @@
 # GitHub Actions — EC2 Deploy Setup
 
-Automated deploy: push to `main` or `feature_1.0` → CI runs → SSH to EC2 → pull code → rebuild Docker containers.
+Automated deploy: push to `prod` or `feature_1.0` → CI → SSH to the matching EC2 environment → rebuild containers.
+
+**Two machines?** See [docs/TWO-MACHINE-DEPLOY.md](../docs/TWO-MACHINE-DEPLOY.md) — `prod` → **production** env, `feature_1.0` → **staging** env.
+
+**New server?** See [docs/GITHUB-ACTIONS-NEW-MACHINE.md](../docs/GITHUB-ACTIONS-NEW-MACHINE.md).
 
 Workflow files:
 
 - `.github/workflows/ci.yml` — build + lint
+- `.github/workflows/bootstrap-ec2.yml` — **one-time** Docker + clone on new EC2
 - `.github/workflows/deploy.yml` — deploy after CI passes
 
 ---
@@ -13,12 +18,24 @@ Workflow files:
 
 Go to **GitHub repo → Settings → Secrets and variables → Actions → New repository secret**
 
+### SSH
+
 | Secret | Value | Example |
 |--------|-------|---------|
 | `EC2_HOST` | EC2 public IP or domain | `34.236.143.82` |
 | `EC2_USER` | SSH user | `ec2-user` |
 | `EC2_SSH_KEY` | Full contents of your `.pem` private key | `-----BEGIN RSA PRIVATE KEY-----...` |
 | `EC2_APP_DIR` | Optional app path on EC2 | `~/charted_accountant_crm` |
+
+### Application (written to `.env` on each deploy)
+
+| Secret | Value | Example |
+|--------|-------|---------|
+| `POSTGRES_PASSWORD` | Postgres password | strong random string |
+| `ADMIN_EMAIL` | CA admin login | `admin@cafirmops.in` |
+| `ADMIN_PASSWORD` | CA admin password | strong password |
+| `ADMIN_NAME` | Optional display name | `Sai Charan` |
+| `APP_PUBLIC_URL` | Public site URL | `https://cafirmops.in` |
 
 To copy the PEM key:
 
@@ -30,21 +47,24 @@ Paste the entire file including `BEGIN` and `END` lines.
 
 ---
 
-## 2. GitHub environment (optional)
+## 2. GitHub environments (required for two machines)
 
-`deploy.yml` uses the `production` environment. On first run, GitHub may prompt you to create it.
+Create two environments under **Settings → Environments**:
 
-**Settings → Environments → production**
+| Environment | Branch | Machine |
+|-------------|--------|---------|
+| `production` | `prod` | New EC2 (self-hosted Postgres) |
+| `staging` | `feature_1.0` | Old EC2 (Render Postgres) |
 
-- Add the same secrets there if you use environment-scoped secrets
-- Optionally enable **Required reviewers** for manual approval before deploy
+Add the secrets from §1 to **each environment** with that machine's `EC2_HOST` and key. Production also needs `POSTGRES_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`.
+
+Optional: enable **Required reviewers** on `production` only.
 
 ---
 
-## 3. EC2 must pull code from GitHub
+## 4. EC2 must pull code from GitHub
 
 GitHub Actions SSHs into EC2 and runs `git fetch` + `git reset --hard origin/<branch>`.
-The EC2 instance needs read access to the repo.
 
 ### Option A — Public repository
 
@@ -53,7 +73,7 @@ No extra setup. Ensure the remote is correct on EC2:
 ```bash
 cd ~/charted_accountant_crm
 git remote -v
-git fetch origin feature_1.0   # or main
+git fetch origin prod
 ```
 
 ### Option B — Private repository (deploy key)
@@ -90,36 +110,31 @@ git fetch origin
 Test:
 
 ```bash
-git fetch origin feature_1.0
+git fetch origin prod
 ```
 
 ---
 
-## 4. EC2 one-time checklist
+## 4. New machine checklist (GitHub Actions only)
 
-```bash
-# Docker works
-docker ps
+1. Launch EC2 + Elastic IP + security group (22, 80, 443)
+2. Add all secrets from §1
+3. Run **Bootstrap EC2 (one-time)** workflow
+4. Run **Deploy to EC2** workflow (or push to `prod`)
+5. Configure DNS + Nginx + SSL on EC2 (manual, one-time)
 
-# Repo exists
-ls ~/charted_accountant_crm/scripts/deploy-ec2.sh
-
-# Manual deploy test
-cd ~/charted_accountant_crm
-DEPLOY_BRANCH=feature_1.0 ./scripts/deploy-ec2.sh
-```
-
-Nginx and SSL are **not** managed by GitHub Actions — they stay on the host. Only Docker containers are rebuilt.
+Nginx and SSL are **not** managed by GitHub Actions — only Docker containers are rebuilt on deploy.
 
 ---
 
 ## 5. How deploy is triggered
 
-| Trigger | Branch deployed |
-|---------|-----------------|
-| Push to `main` | `main` |
-| Push to `feature_1.0` | `feature_1.0` |
-| Manual: Actions → Deploy to EC2 → Run workflow | Choose branch |
+| Trigger | Branch | Target environment |
+|---------|--------|-------------------|
+| Push to `prod` | `prod` | **production** (new machine) |
+| Push to `feature_1.0` | `feature_1.0` | **staging** (old machine) |
+| Manual: **Bootstrap EC2** | — | Choose production or staging |
+| Manual: **Deploy to EC2** | chosen branch | matching environment |
 
 Monitor: **GitHub → Actions** tab.
 
@@ -128,18 +143,11 @@ Monitor: **GitHub → Actions** tab.
 ## 6. Typical developer workflow
 
 ```bash
-# Develop on feature branch
-git checkout feature_1.0
-git add .
-git commit -m "Your change"
-git push origin feature_1.0
-# → CI + deploy run automatically
-
-# When ready for production default branch
-git checkout main
+# Merge tested changes into prod and deploy to EC2
+git checkout prod
 git merge feature_1.0
-git push origin main
-# → deploys main to EC2
+git push origin prod
+# → CI + deploy run automatically (self-hosted Postgres on EC2)
 ```
 
 ---

@@ -2,46 +2,88 @@ name: Deploy to EC2
 
 on:
   push:
-    branches: [main, feature_1.0]
+    branches: [prod, feature_1.0]
   workflow_dispatch:
     inputs:
       branch:
         description: Branch to deploy
         required: true
-        default: main
+        default: prod
         type: choice
         options:
-          - main
+          - prod
           - feature_1.0
 
 concurrency:
-  group: deploy-ec2-production
+  group: deploy-ec2-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || github.ref_name }}
   cancel-in-progress: false
-
-env:
-  DEPLOY_BRANCH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || github.ref_name }}
 
 jobs:
   ci:
     uses: ./.github/workflows/ci.yml
 
-  deploy:
-    name: Deploy to EC2
-    needs: ci
+  resolve:
+    name: Resolve target machine
     runs-on: ubuntu-latest
-    environment: production
+    outputs:
+      deploy_branch: ${{ steps.pick.outputs.deploy_branch }}
+      github_environment: ${{ steps.pick.outputs.github_environment }}
+      write_env_profile: ${{ steps.pick.outputs.write_env_profile }}
+    steps:
+      - id: pick
+        run: |
+          BRANCH="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || github.ref_name }}"
+          echo "deploy_branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          if [ "$BRANCH" = "prod" ]; then
+            echo "github_environment=production" >> "$GITHUB_OUTPUT"
+            echo "write_env_profile=prod" >> "$GITHUB_OUTPUT"
+          else
+            echo "github_environment=staging" >> "$GITHUB_OUTPUT"
+            echo "write_env_profile=staging" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    name: Deploy (${{ needs.resolve.outputs.deploy_branch }})
+    needs: [ci, resolve]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve.outputs.github_environment }}
+    env:
+      DEPLOY_BRANCH: ${{ needs.resolve.outputs.deploy_branch }}
+      WRITE_ENV_PROFILE: ${{ needs.resolve.outputs.write_env_profile }}
     steps:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_BRANCH: ${{ env.DEPLOY_BRANCH }}
+          WRITE_ENV_PROFILE: ${{ env.WRITE_ENV_PROFILE }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_NAME: ${{ secrets.ADMIN_NAME }}
+          APP_PUBLIC_URL: ${{ secrets.APP_PUBLIC_URL }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: DEPLOY_BRANCH,WRITE_ENV_PROFILE,POSTGRES_PASSWORD,ADMIN_EMAIL,ADMIN_PASSWORD,ADMIN_NAME,APP_PUBLIC_URL
           script_stop: true
           script: |
             set -euo pipefail
             APP_DIR="${{ secrets.EC2_APP_DIR }}"
             if [ -z "${APP_DIR}" ]; then APP_DIR="$HOME/charted_accountant_crm"; fi
+            export APP_DIR
+
+            if [ ! -d "$APP_DIR/.git" ]; then
+              echo "ERROR: Repo not found at $APP_DIR. Run 'Bootstrap EC2' for environment '${{ needs.resolve.outputs.github_environment }}' first."
+              exit 1
+            fi
+
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "ERROR: Docker not installed. Run 'Bootstrap EC2' for environment '${{ needs.resolve.outputs.github_environment }}' first."
+              exit 1
+            fi
+
             cd "$APP_DIR"
-            chmod +x scripts/deploy-ec2.sh scripts/compose.sh
-            DEPLOY_BRANCH="${{ env.DEPLOY_BRANCH }}" APP_DIR="$APP_DIR" ./scripts/deploy-ec2.sh
+            chmod +x scripts/deploy-ec2.sh scripts/compose.sh scripts/write-env.sh 2>/dev/null || true
+            ./scripts/write-env.sh
+            DEPLOY_BRANCH="$DEPLOY_BRANCH" APP_DIR="$APP_DIR" ./scripts/deploy-ec2.sh
