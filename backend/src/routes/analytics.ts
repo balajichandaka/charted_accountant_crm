@@ -142,10 +142,26 @@ router.get("/report", async (req, res, next) => {
     const from = req.query.from ? startOfDay(new Date(String(req.query.from))) : startOfDay(subDays(now, 30));
 
     const where: Prisma.TicketWhereInput = { createdAt: { gte: from, lte: to } };
-    if (req.query.assigneeId) where.assigneeId = String(req.query.assigneeId);
-    if (req.query.status) where.status = String(req.query.status) as Prisma.TicketWhereInput["status"];
-    if (req.query.clientId) where.clientId = String(req.query.clientId);
-    if (req.query.categoryId) where.categoryId = String(req.query.categoryId);
+    if (req.query.assigneeId) {
+      const vals = String(req.query.assigneeId).split(",").filter(Boolean);
+      where.assigneeId = vals.length === 1 ? vals[0] : { in: vals };
+    }
+    if (req.query.status) {
+      const vals = String(req.query.status).split(",").filter(Boolean);
+      where.status = vals.length === 1 ? (vals[0] as Prisma.TicketWhereInput["status"]) : { in: vals as any[] };
+    }
+    if (req.query.clientId) {
+      const vals = String(req.query.clientId).split(",").filter(Boolean);
+      where.clientId = vals.length === 1 ? vals[0] : { in: vals };
+    }
+    if (req.query.categoryId) {
+      const vals = String(req.query.categoryId).split(",").filter(Boolean);
+      where.categoryId = vals.length === 1 ? vals[0] : { in: vals };
+    }
+    if (req.query.priority) {
+      const vals = String(req.query.priority).split(",").filter(Boolean);
+      where.priority = vals.length === 1 ? (vals[0] as any) : { in: vals as any[] };
+    }
 
     const [tickets, clients, categories, employees] = await Promise.all([
       prisma.ticket.findMany({

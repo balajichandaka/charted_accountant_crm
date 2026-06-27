@@ -14,6 +14,7 @@ export function PageHeader({
   return (
     <div
       className={cn(
+        "sticky top-0 z-20 -mx-4 border-b bg-background/95 px-4 pb-4 pt-6 backdrop-blur lg:-mx-8 lg:px-8 lg:pt-8",
         "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
         className
       )}

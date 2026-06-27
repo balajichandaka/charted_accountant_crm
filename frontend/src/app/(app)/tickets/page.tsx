@@ -41,11 +41,15 @@ export default async function TicketsPage({
 
   const params: Record<string, string> = {};
   if (sp.status) params.status = sp.status;
+  else params.excludeDone = "true";
   if (sp.priority) params.priority = sp.priority;
   if (sp.assigneeId) params.assigneeId = sp.assigneeId;
   if (sp.clientId) params.clientId = sp.clientId;
   if (sp.categoryId) params.categoryId = sp.categoryId;
   if (sp.q) params.search = sp.q;
+  if (sp.dateType) params.dateType = sp.dateType;
+  if (sp.dateFrom) params.dateFrom = sp.dateFrom;
+  if (sp.dateTo) params.dateTo = sp.dateTo;
 
   const queryString = new URLSearchParams(params).toString();
   const path = queryString ? `/api/tickets?${queryString}` : "/api/tickets";

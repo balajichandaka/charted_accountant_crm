@@ -71,14 +71,22 @@ function scopeFor(req: { user?: { role: string; sub: string } }) {
 router.get("/", async (req, res, next) => {
   try {
     const q = req.query as Record<string, string | string[]>;
-    const { status, priority, assigneeId, clientId, categoryId, search } = Object.fromEntries(Object.entries(q).map(([k,v]) => [k, Array.isArray(v) ? v[0] : v])) as Record<string, string | undefined>;
+    const { status, priority, assigneeId, clientId, categoryId, search, excludeDone, dateType, dateFrom, dateTo } = Object.fromEntries(Object.entries(q).map(([k,v]) => [k, Array.isArray(v) ? v[0] : v])) as Record<string, string | undefined>;
     const where: Record<string, unknown> = scopeFor(req);
     if (status) where.status = { in: status.split(",") };
+    else if (excludeDone === "true") where.status = { notIn: ["DONE", "CANCELLED"] };
     if (priority) where.priority = { in: priority.split(",") };
-    if (assigneeId) where.assigneeId = assigneeId;
-    if (clientId) where.clientId = clientId;
-    if (categoryId) where.categoryId = categoryId;
+    if (assigneeId) where.assigneeId = { in: assigneeId.split(",") };
+    if (clientId) where.clientId = { in: clientId.split(",") };
+    if (categoryId) where.categoryId = { in: categoryId.split(",") };
     if (search) where.title = { contains: search, mode: "insensitive" };
+    if (dateFrom || dateTo) {
+      const field = ["startDate", "dueDate", "createdAt"].includes(dateType ?? "") ? dateType! : "createdAt";
+      const range: Record<string, Date> = {};
+      if (dateFrom) range.gte = new Date(dateFrom);
+      if (dateTo) { const d = new Date(dateTo); d.setHours(23, 59, 59, 999); range.lte = d; }
+      where[field] = range;
+    }
 
     const [tickets, clients, employees, categories] = await Promise.all([
       prisma.ticket.findMany({ where, orderBy: [{ status: "asc" }, { dueDate: "asc" }], take: 200, include: { client: true, assignee: true, category: true } }),
@@ -90,12 +98,15 @@ router.get("/", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/tickets/board
+// GET /api/tickets/board?showDone=true
 router.get("/board", async (req, res, next) => {
   try {
-    const where = { status: { in: BOARD_STATUSES }, ...scopeFor(req) };
+    const showDone = req.query.showDone === "true";
+    const activeStatuses: TicketStatus[] = ["OPEN", "IN_PROGRESS", "REVIEW", "BLOCKED"];
+    const statuses = showDone ? BOARD_STATUSES : activeStatuses;
+    const where = { status: { in: statuses }, ...scopeFor(req) };
     const tickets = await prisma.ticket.findMany({ where, orderBy: [{ priority: "desc" }, { dueDate: "asc" }], take: 300, include: { client: true, assignee: true, category: true, _count: { select: { subtasks: true } } } });
-    res.json({ ok: true, data: tickets });
+    res.json({ ok: true, data: { tickets, showDone } });
   } catch (err) { next(err); }
 });
 

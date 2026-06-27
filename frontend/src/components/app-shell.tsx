@@ -145,9 +145,9 @@ export function AppShell({
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen w-full">
+    <div className="flex h-screen w-full overflow-hidden">
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex h-screen overflow-y-auto">
         <Brand />
         <NavLinks pathname={pathname} role={user.role} />
         <div className="px-3 pb-4 text-xs text-sidebar-foreground/40">
@@ -155,9 +155,9 @@ export function AppShell({
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur lg:px-6">
+        <header className="z-30 flex h-14 shrink-0 items-center gap-3 border-b bg-background px-4 lg:px-6">
           {/* Mobile menu */}
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
@@ -216,8 +216,8 @@ export function AppShell({
           </DropdownMenu>
         </header>
 
-        <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">
-          <div className="mx-auto w-full max-w-7xl space-y-6">{children}</div>
+        <main className="flex flex-1 flex-col overflow-y-auto overscroll-none px-4 pb-6 lg:px-8 lg:pb-8">
+          <div className="mx-auto flex w-full max-w-7xl flex-1 min-h-0 flex-col gap-6">{children}</div>
         </main>
       </div>
     </div>
