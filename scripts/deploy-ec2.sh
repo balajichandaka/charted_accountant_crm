@@ -32,6 +32,9 @@ fi
 
 COMPOSE="./scripts/compose.sh"
 
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+
 echo "==> Disk space"
 df -h / | tail -1
 docker system df 2>/dev/null || true
@@ -44,7 +47,15 @@ if [ "${AVAIL_KB:-0}" -lt 2097152 ]; then
 fi
 
 echo "==> Building and starting containers"
-"$COMPOSE" -f "$COMPOSE_FILE" build --parallel
+MEM_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}' || echo 0)
+if [ "${MEM_MB:-0}" -ge 3500 ]; then
+  echo "==> Memory ${MEM_MB}MB — parallel build"
+  "$COMPOSE" -f "$COMPOSE_FILE" build --parallel --progress=plain
+else
+  echo "==> Memory ${MEM_MB}MB — sequential build (avoids OOM on small instances)"
+  "$COMPOSE" -f "$COMPOSE_FILE" build --progress=plain backend
+  "$COMPOSE" -f "$COMPOSE_FILE" build --progress=plain frontend
+fi
 "$COMPOSE" -f "$COMPOSE_FILE" up -d
 
 echo "==> Pruning dangling images"

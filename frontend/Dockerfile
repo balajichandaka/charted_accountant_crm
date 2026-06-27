@@ -1,7 +1,8 @@
 FROM node:22-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN --mount=type=cache,target=/root/.npm \
+    npm install
 
 FROM node:22-slim AS builder
 WORKDIR /app
