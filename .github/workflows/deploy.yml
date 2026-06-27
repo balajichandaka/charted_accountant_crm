@@ -70,7 +70,7 @@ jobs:
     steps:
       - name: Log deploy target
         run: |
-          APP_DIR="${{ secrets.EC2_APP_DIR }}"
+          APP_DIR="${{ secrets.EC2_APP_DIR || vars.EC2_APP_DIR }}"
           if [ -z "$APP_DIR" ]; then APP_DIR="$HOME/charted_accountant_crm"; fi
           echo "══════════════════════════════════════════"
           echo "  DEPLOY TARGET (GitHub Actions)"
@@ -79,34 +79,41 @@ jobs:
           echo "  Environment:  ${{ needs.resolve.outputs.github_environment }}"
           echo "  Profile:      ${{ needs.resolve.outputs.write_env_profile }}"
           echo "  Machine:      ${{ needs.resolve.outputs.machine_label }}"
-          echo "  SSH user:     ${{ secrets.EC2_USER }}"
-          echo "  SSH host:     ${{ secrets.EC2_HOST }}"
+          echo "  SSH user:     ${{ secrets.EC2_USER || vars.EC2_USER }}"
+          echo "  SSH host:     ${{ secrets.EC2_HOST || vars.EC2_HOST }}"
           echo "  App dir:      $APP_DIR"
           echo "══════════════════════════════════════════"
           echo "After SSH connects, logs will show this EC2 public IP."
           echo "Compare prod vs staging runs — IPs must differ."
           echo "══════════════════════════════════════════"
 
-      - name: Validate SSH secrets
+      - name: Validate SSH config
         run: |
           ENV="${{ needs.resolve.outputs.github_environment }}"
+          HOST="${{ secrets.EC2_HOST || vars.EC2_HOST }}"
+          USER="${{ secrets.EC2_USER || vars.EC2_USER }}"
+          KEY="${{ secrets.EC2_SSH_KEY || vars.EC2_SSH_KEY }}"
           missing=""
-          if [ -z "${{ secrets.EC2_HOST }}" ]; then missing="${missing} EC2_HOST"; fi
-          if [ -z "${{ secrets.EC2_USER }}" ]; then missing="${missing} EC2_USER"; fi
-          if [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then missing="${missing} EC2_SSH_KEY"; fi
+          if [ -z "$HOST" ]; then missing="${missing} EC2_HOST"; fi
+          if [ -z "$USER" ]; then missing="${missing} EC2_USER"; fi
+          if [ -z "$KEY" ]; then missing="${missing} EC2_SSH_KEY"; fi
           if [ -n "$missing" ]; then
-            echo "ERROR: Missing secrets for GitHub environment '$ENV':$missing"
+            echo "ERROR: Missing for GitHub environment '$ENV':$missing"
             echo ""
-            echo "Add them under: Settings → Environments → $ENV → Environment secrets"
+            echo "Add as Environment **secrets** (recommended) or variables:"
+            echo "  Settings → Environments → $ENV"
             echo ""
             if [ "$ENV" = "production" ]; then
-              echo "  EC2_HOST = 50.17.16.46  (new production machine)"
+              echo "  EC2_HOST = 50.17.16.46"
             else
-              echo "  EC2_HOST = 34.236.143.82  (staging / old machine)"
+              echo "  EC2_HOST = 34.236.143.82"
             fi
             echo "  EC2_USER = ec2-user"
-            echo "  EC2_SSH_KEY = contents of the .pem file for that machine"
+            echo "  EC2_SSH_KEY = .pem file contents (use Secrets, not Variables)"
             exit 1
+          fi
+          if [ -n "${{ vars.EC2_SSH_KEY }}" ] && [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
+            echo "WARNING: EC2_SSH_KEY is in Variables — move it to Secrets for security."
           fi
 
       - name: Deploy over SSH
@@ -116,21 +123,21 @@ jobs:
           WRITE_ENV_PROFILE: ${{ env.WRITE_ENV_PROFILE }}
           DEPLOY_ENV: ${{ needs.resolve.outputs.github_environment }}
           DEPLOY_MACHINE: ${{ needs.resolve.outputs.machine_label }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-          ADMIN_NAME: ${{ secrets.ADMIN_NAME }}
-          APP_PUBLIC_URL: ${{ secrets.APP_PUBLIC_URL }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || vars.POSTGRES_PASSWORD }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || vars.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || vars.ADMIN_PASSWORD }}
+          ADMIN_NAME: ${{ secrets.ADMIN_NAME || vars.ADMIN_NAME }}
+          APP_PUBLIC_URL: ${{ secrets.APP_PUBLIC_URL || vars.APP_PUBLIC_URL }}
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          host: ${{ secrets.EC2_HOST || vars.EC2_HOST }}
+          username: ${{ secrets.EC2_USER || vars.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY || vars.EC2_SSH_KEY }}
           command_timeout: 60m
           envs: DEPLOY_BRANCH,WRITE_ENV_PROFILE,DEPLOY_ENV,DEPLOY_MACHINE,POSTGRES_PASSWORD,ADMIN_EMAIL,ADMIN_PASSWORD,ADMIN_NAME,APP_PUBLIC_URL
           script_stop: true
           script: |
             set -euo pipefail
-            APP_DIR="${{ secrets.EC2_APP_DIR }}"
+            APP_DIR="${{ secrets.EC2_APP_DIR || vars.EC2_APP_DIR }}"
             if [ -z "${APP_DIR}" ]; then APP_DIR="$HOME/charted_accountant_crm"; fi
             export APP_DIR
 
