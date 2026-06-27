@@ -31,7 +31,7 @@ function emailSenderName(): string {
 
 function subjectFor(event: TicketEvent, ticket: TicketNotify, recipient: Recipient): string {
   const sender = emailSenderName();
-  if (event === "CREATED" && recipient.kind === "client") {
+  if ((event === "CREATED" || event === "COMPLETED") && recipient.kind === "client") {
     return `${sender} :`;
   }
   if (event === "ASSIGNED") {
@@ -78,6 +78,36 @@ Phone - ${FIRM_CONTACT.escalationPhone}
 Thanks for the opportunity to serve you`;
 }
 
+function clientCompletedBody(recipient: Recipient, ticket: TicketNotify): string {
+  const name = recipient.name.replace(/"/g, "");
+  return `<p>Hi &quot;${name}&quot;</p>
+<p>Your Ticket (${ticket.title.replace(/"/g, "")}) is completed....</p>
+<p>Please contact for us any query regarding this to the below mentioned Mail and Number</p>
+<p>Contact Details :-</p>
+<p>Mail ID - ${FIRM_CONTACT.email}&nbsp;&nbsp;Phone - ${FIRM_CONTACT.phone}</p>
+<p>Escalation - ${FIRM_CONTACT.escalationName} - email - ${FIRM_CONTACT.escalationEmail}<br>
+Phone - ${FIRM_CONTACT.escalationPhone}</p>
+<p>Thanks for the opportunity to serve you</p>`;
+}
+
+function clientCompletedText(recipient: Recipient, ticket: TicketNotify): string {
+  const name = recipient.name.replace(/"/g, "");
+  return `Hi "${name}"
+
+Your Ticket (${ticket.title.replace(/"/g, "")}) is completed....
+
+Please contact for us any query regarding this to the below mentioned Mail and Number
+
+Contact Details :-
+
+Mail ID - ${FIRM_CONTACT.email}  Phone - ${FIRM_CONTACT.phone}
+
+Escalation - ${FIRM_CONTACT.escalationName} - email - ${FIRM_CONTACT.escalationEmail}
+Phone - ${FIRM_CONTACT.escalationPhone}
+
+Thanks for the opportunity to serve you`;
+}
+
 function bodyFor(
   event: TicketEvent,
   recipient: Recipient,
@@ -88,6 +118,12 @@ function bodyFor(
     return {
       html: clientCreatedBody(recipient, ticket),
       text: clientCreatedText(recipient, ticket),
+    };
+  }
+  if (event === "COMPLETED" && recipient.kind === "client") {
+    return {
+      html: clientCompletedBody(recipient, ticket),
+      text: clientCompletedText(recipient, ticket),
     };
   }
 
