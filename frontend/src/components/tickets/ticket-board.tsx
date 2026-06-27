@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { DoneConfirmDialog } from "@/components/tickets/done-confirm-dialog";
 import {
   DndContext,
   PointerSensor,
@@ -130,6 +131,8 @@ export function TicketBoard({ tickets }: { tickets: BoardTicket[] }) {
   const router = useRouter();
   const [items, setItems] = useState(tickets);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [pendingMove, setPendingMove] = useState<{ ticketId: string; status: TicketStatus } | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
@@ -155,6 +158,12 @@ export function TicketBoard({ tickets }: { tickets: BoardTicket[] }) {
     const ticket = items.find((t) => t.id === ticketId);
     if (!ticket || ticket.status === overId) return;
 
+    if (overId === "DONE") {
+      setPendingMove({ ticketId, status: "DONE" });
+      setDialogOpen(true);
+      return;
+    }
+
     const prev = items;
     setItems((cur) =>
       cur.map((t) => (t.id === ticketId ? { ...t, status: overId } : t))
@@ -170,18 +179,51 @@ export function TicketBoard({ tickets }: { tickets: BoardTicket[] }) {
     });
   }
 
+  function onConfirmDone() {
+    const move = pendingMove;
+    setPendingMove(null);
+    setDialogOpen(false);
+    if (!move) return;
+    const { ticketId, status } = move;
+    const prev = items;
+    setItems((cur) =>
+      cur.map((t) => (t.id === ticketId ? { ...t, status } : t))
+    );
+    changeTicketStatus(ticketId, status).then((res) => {
+      if (res.ok) {
+        toast.success(`Moved to ${STATUS_LABEL[status]}`);
+        router.refresh();
+      } else {
+        toast.error(res.error);
+        setItems(prev); // rollback
+      }
+    });
+  }
+
+  function onCancelDone() {
+    setPendingMove(null);
+    setDialogOpen(false);
+  }
+
   return (
-    <DndContext
-      sensors={sensors}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-    >
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {BOARD_COLUMNS.map((status) => (
-          <Column key={status} status={status} tickets={grouped[status] ?? []} />
-        ))}
-      </div>
-      <DragOverlay>{active ? <Card t={active} dragging /> : null}</DragOverlay>
-    </DndContext>
+    <>
+      <DndContext
+        sensors={sensors}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+      >
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {BOARD_COLUMNS.map((status) => (
+            <Column key={status} status={status} tickets={grouped[status] ?? []} />
+          ))}
+        </div>
+        <DragOverlay>{active ? <Card t={active} dragging /> : null}</DragOverlay>
+      </DndContext>
+      <DoneConfirmDialog
+        open={dialogOpen}
+        onConfirm={onConfirmDone}
+        onCancel={onCancelDone}
+      />
+    </>
   );
 }

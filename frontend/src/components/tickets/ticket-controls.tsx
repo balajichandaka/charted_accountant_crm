@@ -1,9 +1,10 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { changeTicketStatus, assignTicket } from "@/actions/tickets";
+import { DoneConfirmDialog } from "@/components/tickets/done-confirm-dialog";
 import {
   Select,
   SelectContent,
@@ -25,31 +26,57 @@ export function StatusSelect({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<TicketStatus | null>(null);
   return (
-    <Select
-      value={status}
-      disabled={pending}
-      onValueChange={(v) =>
-        start(async () => {
-          const res = await changeTicketStatus(ticketId, v as TicketStatus);
-          if (res.ok) {
-            toast.success("Status updated");
-            router.refresh();
-          } else toast.error(res.error);
-        })
-      }
-    >
-      <SelectTrigger className="w-40">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {STATUS_ORDER.map((s) => (
-          <SelectItem key={s} value={s}>
-            {STATUS_LABEL[s]}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <>
+      <Select
+        value={status}
+        disabled={pending}
+        onValueChange={(v) => {
+          if (v === "DONE") {
+            setPendingStatus(v as TicketStatus);
+            setDialogOpen(true);
+          } else {
+            start(async () => {
+              const res = await changeTicketStatus(ticketId, v as TicketStatus);
+              if (res.ok) {
+                toast.success("Status updated");
+                router.refresh();
+              } else toast.error(res.error);
+            });
+          }
+        }}
+      >
+        <SelectTrigger className="w-40">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {STATUS_ORDER.map((s) => (
+            <SelectItem key={s} value={s}>
+              {STATUS_LABEL[s]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <DoneConfirmDialog
+        open={dialogOpen}
+        onCancel={() => {
+          setPendingStatus(null);
+          setDialogOpen(false);
+        }}
+        onConfirm={() => {
+          start(async () => {
+            const res = await changeTicketStatus(ticketId, pendingStatus!);
+            if (res.ok) {
+              toast.success("Status updated");
+              router.refresh();
+            } else toast.error(res.error);
+            setDialogOpen(false);
+          });
+        }}
+      />
+    </>
   );
 }
 
