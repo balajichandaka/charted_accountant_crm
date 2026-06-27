@@ -23,30 +23,32 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment }}
     steps:
-      - name: Validate SSH secrets
+      - name: Validate SSH config
         run: |
           ENV="${{ github.event.inputs.environment }}"
+          HOST="${{ secrets.EC2_HOST || vars.EC2_HOST }}"
+          USER="${{ secrets.EC2_USER || vars.EC2_USER }}"
+          KEY="${{ secrets.EC2_SSH_KEY || vars.EC2_SSH_KEY }}"
           missing=""
-          if [ -z "${{ secrets.EC2_HOST }}" ]; then missing="${missing} EC2_HOST"; fi
-          if [ -z "${{ secrets.EC2_USER }}" ]; then missing="${missing} EC2_USER"; fi
-          if [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then missing="${missing} EC2_SSH_KEY"; fi
+          if [ -z "$HOST" ]; then missing="${missing} EC2_HOST"; fi
+          if [ -z "$USER" ]; then missing="${missing} EC2_USER"; fi
+          if [ -z "$KEY" ]; then missing="${missing} EC2_SSH_KEY"; fi
           if [ -n "$missing" ]; then
-            echo "ERROR: Missing secrets for GitHub environment '$ENV':$missing"
-            echo "Add them under: Settings → Environments → $ENV → Environment secrets"
+            echo "ERROR: Missing for GitHub environment '$ENV':$missing"
             exit 1
           fi
 
       - name: Install Docker and clone repo
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          host: ${{ secrets.EC2_HOST || vars.EC2_HOST }}
+          username: ${{ secrets.EC2_USER || vars.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY || vars.EC2_SSH_KEY }}
           command_timeout: 30m
           script_stop: true
           script: |
             set -euo pipefail
-            APP_DIR="${{ secrets.EC2_APP_DIR }}"
+            APP_DIR="${{ secrets.EC2_APP_DIR || vars.EC2_APP_DIR }}"
             if [ -z "${APP_DIR}" ]; then APP_DIR="$HOME/charted_accountant_crm"; fi
             REPO_URL="https://github.com/balajichandaka/charted_accountant_crm.git"
 
