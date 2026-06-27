@@ -5,6 +5,7 @@ set -euo pipefail
 REPO_URL="${REPO_URL:-}"
 APP_DIR="${APP_DIR:-$HOME/charted_accountant_crm}"
 PUBLIC_HOST="${PUBLIC_HOST:-}"
+DEPLOY_BRANCH="${DEPLOY_BRANCH:-prod}"
 
 install_buildx() {
   echo "==> Installing docker buildx (required by docker-compose v5+)"
@@ -84,13 +85,19 @@ else
 fi
 
 cd "$APP_DIR"
+git fetch origin "$DEPLOY_BRANCH"
+git checkout "$DEPLOY_BRANCH"
 chmod +x scripts/deploy-ec2.sh scripts/compose.sh scripts/install-buildx.sh
 
 echo ""
 echo "Bootstrap done. Next steps:"
 echo "  1. Log out and back in (docker group), or run: newgrp docker"
 echo "  2. Get public IP: curl -s http://checkip.amazonaws.com"
-echo "  3. Start app:"
-echo "     ./scripts/compose.sh up --build -d"
-echo "  4. Open security group ports 80, 443 (and 22 for SSH); point cafirmops.in DNS to this host"
-echo "  5. GitHub Actions: EC2_USER is usually ec2-user (Amazon Linux) or ubuntu"
+echo "  3. Configure env:"
+echo "       cd $APP_DIR && cp .env.example .env && nano .env"
+echo "     Set POSTGRES_PASSWORD, ADMIN_EMAIL, ADMIN_PASSWORD, APP_PUBLIC_URL"
+echo "  4. Start app (branch: $DEPLOY_BRANCH):"
+echo "       ./scripts/compose.sh up --build -d"
+echo "  5. Open security group ports 80, 443 (and 22 for SSH); point DNS to this host"
+echo "  6. Nginx + SSL — see docs/NEW-MACHINE-DEPLOY.md"
+echo "  7. GitHub Actions: update EC2_HOST secret to this machine's IP"
