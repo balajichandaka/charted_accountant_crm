@@ -6,7 +6,7 @@
 #   ./scripts/compose.sh up --build -d
 #
 # Local Docker (same stack, bundled Postgres on the compose network):
-#   APP_PUBLIC_URL=http://localhost:3000 SEED_DB=true ./scripts/compose.sh up --build
+#   APP_PUBLIC_URL=http://localhost:3000 ./scripts/compose.sh up --build
 
 services:
   db:
@@ -52,7 +52,9 @@ services:
       APP_URL: "${APP_PUBLIC_URL:-https://cafirmops.in}"
       PORT: "4000"
       UPLOAD_DIR: "/app/uploads"
-      SEED_DB: "${SEED_DB:-false}"
+      ADMIN_NAME: "${ADMIN_NAME:-Administrator}"
+      ADMIN_EMAIL: "${ADMIN_EMAIL:-}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
       NODE_ENV: production
     ports:
       - "4000:4000"

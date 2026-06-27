@@ -107,7 +107,7 @@ Before first deploy:
 ```bash
 cd ~/charted_accountant_crm
 cp .env.example .env
-nano .env   # set POSTGRES_PASSWORD and APP_PUBLIC_URL
+nano .env   # set POSTGRES_PASSWORD, ADMIN_EMAIL, ADMIN_PASSWORD, APP_PUBLIC_URL
 ```
 
 ### Key settings
@@ -119,6 +119,9 @@ nano .env   # set POSTGRES_PASSWORD and APP_PUBLIC_URL
 | `BACKEND_URL` | `http://backend:4000` | Frontend → backend (Docker internal network) |
 | `AUTH_TRUST_HOST` | `true` | Required for Auth.js behind Nginx/HTTPS |
 | `POSTGRES_PASSWORD` | strong secret in `.env` | Self-hosted Postgres password |
+| `ADMIN_EMAIL` | your admin login email | Initial CA user (created once) |
+| `ADMIN_PASSWORD` | strong secret in `.env` | Initial CA user password |
+| `ADMIN_NAME` | display name (optional) | Defaults to `Administrator` |
 | `DATABASE_URL` | `postgresql://ca:PASSWORD@db:5432/ca_app?schema=public` | Auto-built from `.env` in compose |
 
 ### Start the app
@@ -131,6 +134,8 @@ cp .env.example .env   # first time only
 ```
 
 First build on t2.micro is slow. Add swap if the instance runs out of memory during build.
+
+On first boot the backend creates **one CA admin user** from `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env`. No demo clients, tickets, or sample data are loaded.
 
 ### Verify containers
 
@@ -414,12 +419,16 @@ These are informational, not errors:
 
 ---
 
-## 8. Demo login
+## 8. Admin login
+
+On first deploy, sign in with the credentials you set in `.env`:
 
 | Field | Value |
 |-------|-------|
-| Email | `ca@firm.test` |
-| Password | `password123` |
+| Email | `ADMIN_EMAIL` from `.env` |
+| Password | `ADMIN_PASSWORD` from `.env` |
+
+The admin has the **CA** role (full access). Additional users can be created from the app after login.
 
 ---
 

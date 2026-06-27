@@ -7,4 +7,4 @@ COPY . .
 RUN npx prisma generate
 RUN npx tsc
 EXPOSE 4000
-CMD ["sh", "-c", "npx prisma migrate deploy && if [ \"$SEED_DB\" = \"true\" ]; then npx prisma db seed; fi && node dist/index.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npx prisma db seed && node dist/index.js"]

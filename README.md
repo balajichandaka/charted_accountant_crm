@@ -10,45 +10,45 @@ A full-stack work-management app for Chartered Accountant practices — clients,
 
 ---
 
-## Run locally (Docker — one command)
+## Run locally (Docker — prod branch)
 
-Requires Docker / Colima running.
+Requires Docker running.
 
 ```bash
-docker compose up --build
+cp .env.example .env   # set ADMIN_EMAIL, ADMIN_PASSWORD, POSTGRES_PASSWORD
+./scripts/compose.sh up --build
 ```
 
 | Service | URL |
 |---|---|
 | App | http://localhost:3000 |
-| Email inbox (Mailpit) | http://localhost:8025 |
 
-The container auto-migrates the DB and seeds demo data on first start.
+The backend auto-migrates the DB and creates the admin user on first boot (no demo data).
 
 ---
 
-## Run locally (dev server — no Docker needed for app)
+## Run locally (dev server)
 
-> Start DB and Mailpit first: `docker compose up db mailpit -d`
+> Start Postgres first: `./scripts/compose.sh up -d db`
+
+Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `backend/.env`, then:
 
 ```bash
-npm install
-npx prisma migrate dev
-npx prisma db seed
-npm run dev
+cd backend && npm install && npx prisma migrate dev && npm run db:seed
+cd ../frontend && npm install && npm run dev
 ```
 
 App: http://localhost:3000
 
 ---
 
-## Demo login credentials
+## Admin login (prod branch)
 
 | Role | Email | Password |
 |---|---|---|
-| CA (Admin) | ca@firm.test | password123 |
-| Employee | priya@firm.test | password123 |
-| Employee | rahul@firm.test | password123 |
+| CA (Admin) | `ADMIN_EMAIL` in your `.env` | `ADMIN_PASSWORD` in your `.env` |
+
+On the `feature_1.0` branch, demo seed data and test users are still available.
 
 ---
 
