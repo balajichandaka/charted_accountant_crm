@@ -34,6 +34,30 @@ COMPOSE="./scripts/compose.sh"
 
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
+export BUILDKIT_PROGRESS=plain
+
+ensure_swap_for_build() {
+  local mem_mb swap_mb
+  mem_mb=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}' || echo 0)
+  swap_mb=$(free -m 2>/dev/null | awk '/^Swap:/{print $2}' || echo 0)
+  if [ "${mem_mb:-0}" -ge 3500 ] || [ "${swap_mb:-0}" -ge 1024 ]; then
+    return 0
+  fi
+  if ! command -v sudo >/dev/null 2>&1; then
+    echo "WARNING: Low memory (${mem_mb}MB) and no swap — npm ci may look stuck for 20+ minutes."
+    return 0
+  fi
+  echo "==> Low memory (${mem_mb}MB) — enabling 2G swap (npm ci often hangs without this on small EC2)"
+  if [ ! -f /swapfile ]; then
+    sudo fallocate -l 2G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+  fi
+  sudo swapon /swapfile 2>/dev/null || true
+  free -h
+}
+
+ensure_swap_for_build
 
 echo "==> Disk space"
 df -h / | tail -1
@@ -47,6 +71,7 @@ if [ "${AVAIL_KB:-0}" -lt 2097152 ]; then
 fi
 
 echo "==> Building and starting containers"
+echo "==> Note: frontend 'npm ci' can sit with little output for 15-30 min on small instances — not stuck."
 MEM_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}' || echo 0)
 if [ "${MEM_MB:-0}" -ge 3500 ]; then
   echo "==> Memory ${MEM_MB}MB — parallel build"

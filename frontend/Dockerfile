@@ -1,5 +1,9 @@
 FROM node:22-slim AS deps
 WORKDIR /app
+ENV NPM_CONFIG_LOGLEVEL=info \
+    NPM_CONFIG_FUND=false \
+    NPM_CONFIG_AUDIT=false \
+    NPM_CONFIG_MAXSOCKETS=2
 COPY package.json package-lock.json* ./
 RUN --mount=type=cache,target=/root/.npm \
     npm ci
