@@ -35,16 +35,13 @@ docker system df 2>/dev/null || true
 
 AVAIL_KB=$(df / | awk 'NR==2 {print $4}')
 if [ "${AVAIL_KB:-0}" -lt 2097152 ]; then
-  echo "WARNING: Less than 2GB free on /. Docker builds may fail."
-  echo "Run: docker system prune -af && docker builder prune -af"
+  echo "WARNING: Less than 2GB free on / — pruning unused Docker data (slower next build)."
+  docker builder prune -af 2>/dev/null || true
+  docker image prune -af 2>/dev/null || true
 fi
 
-echo "==> Pruning unused Docker data before build"
-docker builder prune -af 2>/dev/null || true
-docker image prune -af 2>/dev/null || true
-
 echo "==> Building and starting containers"
-"$COMPOSE" -f "$COMPOSE_FILE" build
+"$COMPOSE" -f "$COMPOSE_FILE" build --parallel
 "$COMPOSE" -f "$COMPOSE_FILE" up -d
 
 echo "==> Pruning dangling images"
