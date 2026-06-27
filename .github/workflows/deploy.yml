@@ -2,17 +2,18 @@ name: Deploy to EC2
 
 on:
   push:
-    branches: [main, feature_1.0]
+    branches: [prod]
   workflow_dispatch:
     inputs:
       branch:
         description: Branch to deploy
         required: true
-        default: main
+        default: prod
         type: choice
         options:
-          - main
+          - prod
           - feature_1.0
+          - main
 
 concurrency:
   group: deploy-ec2-production

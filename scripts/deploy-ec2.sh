@@ -3,7 +3,7 @@
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-$HOME/charted_accountant_crm}"
-BRANCH="${DEPLOY_BRANCH:-main}"
+BRANCH="${DEPLOY_BRANCH:-prod}"
 COMPOSE_FILE="docker-compose.yml"
 
 cd "$APP_DIR"

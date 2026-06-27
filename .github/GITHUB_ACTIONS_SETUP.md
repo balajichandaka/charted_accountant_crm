@@ -1,6 +1,8 @@
 # GitHub Actions — EC2 Deploy Setup
 
-Automated deploy: push to `main` or `feature_1.0` → CI runs → SSH to EC2 → pull code → rebuild Docker containers.
+Automated deploy: push to `prod` → CI runs → SSH to EC2 → pull code → rebuild Docker containers.
+
+The `prod` branch uses **self-hosted PostgreSQL** on EC2 (Docker volume). The `feature_1.0` branch uses external Render Postgres.
 
 Workflow files:
 
@@ -53,7 +55,7 @@ No extra setup. Ensure the remote is correct on EC2:
 ```bash
 cd ~/charted_accountant_crm
 git remote -v
-git fetch origin feature_1.0   # or main
+git fetch origin prod
 ```
 
 ### Option B — Private repository (deploy key)
@@ -90,7 +92,7 @@ git fetch origin
 Test:
 
 ```bash
-git fetch origin feature_1.0
+git fetch origin prod
 ```
 
 ---
@@ -106,7 +108,7 @@ ls ~/charted_accountant_crm/scripts/deploy-ec2.sh
 
 # Manual deploy test
 cd ~/charted_accountant_crm
-DEPLOY_BRANCH=feature_1.0 ./scripts/deploy-ec2.sh
+DEPLOY_BRANCH=prod ./scripts/deploy-ec2.sh
 ```
 
 Nginx and SSL are **not** managed by GitHub Actions — they stay on the host. Only Docker containers are rebuilt.
@@ -117,8 +119,7 @@ Nginx and SSL are **not** managed by GitHub Actions — they stay on the host. O
 
 | Trigger | Branch deployed |
 |---------|-----------------|
-| Push to `main` | `main` |
-| Push to `feature_1.0` | `feature_1.0` |
+| Push to `prod` | `prod` |
 | Manual: Actions → Deploy to EC2 → Run workflow | Choose branch |
 
 Monitor: **GitHub → Actions** tab.
@@ -128,18 +129,11 @@ Monitor: **GitHub → Actions** tab.
 ## 6. Typical developer workflow
 
 ```bash
-# Develop on feature branch
-git checkout feature_1.0
-git add .
-git commit -m "Your change"
-git push origin feature_1.0
-# → CI + deploy run automatically
-
-# When ready for production default branch
-git checkout main
+# Merge tested changes into prod and deploy to EC2
+git checkout prod
 git merge feature_1.0
-git push origin main
-# → deploys main to EC2
+git push origin prod
+# → CI + deploy run automatically (self-hosted Postgres on EC2)
 ```
 
 ---

@@ -1,25 +1,21 @@
-# CA Practice — single Compose file for EC2 production and optional local Postgres.
-# All service env vars are defined here.
+# CA Practice — EC2 production stack with self-hosted PostgreSQL.
+# All service env vars are defined here (or via a repo-root .env file).
 #
 # EC2 / production (Nginx on 80/443 → frontend :3000, backend internal :4000):
+#   cp .env.example .env   # set POSTGRES_PASSWORD and secrets
 #   ./scripts/compose.sh up --build -d
 #
-# Local with bundled Postgres (ports 3000 + 4000 + 5432):
-#   DATABASE_URL=postgresql://ca:ca_password@db:5432/ca_app?schema=public \
-#   APP_PUBLIC_URL=http://localhost:3000 SEED_DB=true \
-#   docker compose --profile local up --build
+# Local Docker (same stack, bundled Postgres on the compose network):
+#   APP_PUBLIC_URL=http://localhost:3000 SEED_DB=true ./scripts/compose.sh up --build
 
 services:
   db:
-    profiles: [local]
     image: postgres:16
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ca
-      POSTGRES_PASSWORD: ca_password
-      POSTGRES_DB: ca_app
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: "${POSTGRES_USER:-ca}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-ca_password}"
+      POSTGRES_DB: "${POSTGRES_DB:-ca_app}"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -36,9 +32,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
-        required: false
     environment:
-      DATABASE_URL: "${DATABASE_URL:-postgresql://ca_management_service_admin_db_user:4XYIpOVec5X8W2UwC0cNKFuB7QfO8Ays@dpg-d8iljvtckfvc73bv09eg-a.oregon-postgres.render.com/ca_management_service_admin_db?schema=public&sslmode=require}"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-ca}:${POSTGRES_PASSWORD:-ca_password}@db:5432/${POSTGRES_DB:-ca_app}?schema=public"
       JWT_SECRET: "iSXPhZRT+rGUrCkGLCzc8pct7qUYmqP0HCMGZN7sYB0="
       AUTH_SECRET: "iSXPhZRT+rGUrCkGLCzc8pct7qUYmqP0HCMGZN7sYB0="
       CRON_SECRET: "c0f487898ec28560067581803057de60"

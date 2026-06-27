@@ -15,7 +15,7 @@ Browser
   → http://127.0.0.1:3000
   → Docker frontend (Next.js)
   → Docker backend (Express) at http://backend:4000
-  → Render PostgreSQL (external)
+  → Docker PostgreSQL (self-hosted, volume `pgdata` on EC2 disk)
 ```
 
 | Component | Where it runs | Port |
@@ -23,7 +23,7 @@ Browser
 | Nginx | EC2 host | 80, 443 |
 | Frontend (Next.js) | Docker | 3000 (host) → 3000 (container) |
 | Backend (Express) | Docker | 4000 (optional public; internal via Docker network) |
-| Database | Render Postgres | external |
+| Database | Docker Postgres (`pgdata` volume) | internal only (not exposed on host) |
 
 Nginx handles HTTPS. Docker serves the app on port **3000** so Nginx can use **80** and **443**.
 
@@ -96,7 +96,19 @@ Use `docker-compose` (hyphen), not `docker compose`:
 
 ## 3. Application configuration (`docker-compose.yml`)
 
-All production env vars live in `docker-compose.yml`.
+All production env vars live in `docker-compose.yml` and an optional repo-root `.env` file.
+
+### Self-hosted PostgreSQL
+
+The `prod` branch runs Postgres in Docker on the EC2 instance. Data persists in the **`pgdata`** volume on the instance disk. Postgres is **not** exposed on the host (no public port 5432).
+
+Before first deploy:
+
+```bash
+cd ~/charted_accountant_crm
+cp .env.example .env
+nano .env   # set POSTGRES_PASSWORD and APP_PUBLIC_URL
+```
 
 ### Key settings
 
@@ -106,12 +118,15 @@ All production env vars live in `docker-compose.yml`.
 | `APP_PORT` | `3000` | Host port mapped to frontend container |
 | `BACKEND_URL` | `http://backend:4000` | Frontend → backend (Docker internal network) |
 | `AUTH_TRUST_HOST` | `true` | Required for Auth.js behind Nginx/HTTPS |
-| `DATABASE_URL` | Render Postgres URL | External managed database |
+| `POSTGRES_PASSWORD` | strong secret in `.env` | Self-hosted Postgres password |
+| `DATABASE_URL` | `postgresql://ca:PASSWORD@db:5432/ca_app?schema=public` | Auto-built from `.env` in compose |
 
 ### Start the app
 
 ```bash
 cd ~/charted_accountant_crm
+git checkout prod
+cp .env.example .env   # first time only
 ./scripts/compose.sh up --build -d
 ```
 
