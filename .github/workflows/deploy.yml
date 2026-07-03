@@ -168,4 +168,3 @@ jobs:
             cd "$APP_DIR"
             export WRITE_ENV_PROFILE DEPLOY_ENV DEPLOY_MACHINE
             DEPLOY_BRANCH="$DEPLOY_BRANCH" APP_DIR="$APP_DIR" ./scripts/deploy-ec2.sh
-https://docs.google.com/document/d/109ShfZrExmC8xHD2kQrx5al7snF6KJQpTAMoL_juje4/edit?tab=t.0
