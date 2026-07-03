@@ -1,7 +1,6 @@
 "use server";
 
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
 import { signIn, signOut } from "@/lib/auth";
 import { loginWithBackend } from "@/lib/backend-auth";
@@ -58,7 +57,7 @@ export async function authenticate(
     throw error;
   }
 
-  redirect("/dashboard");
+  return undefined;
 }
 
 export async function logout() {

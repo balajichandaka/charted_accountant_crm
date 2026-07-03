@@ -30,7 +30,15 @@ type DashboardData = {
 export default async function DashboardPage() {
   const user = await requireUser();
   const token = await getToken();
-  const data = await apiGet<DashboardData>("/api/analytics/dashboard", token);
+
+  let data: DashboardData;
+  try {
+    data = await apiGet<DashboardData>("/api/analytics/dashboard", token);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to load dashboard";
+    throw new Error(message);
+  }
+
   const isCA = user.role === "CA";
 
   const buckets: Bucket[] = [

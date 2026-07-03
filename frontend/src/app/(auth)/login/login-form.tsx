@@ -1,32 +1,37 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { useFormStatus } from "react-dom";
+import { useState } from "react";
 import { AlertCircle, Loader2, Eye, EyeOff } from "lucide-react";
 import { authenticate } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? <Loader2 className="size-4 animate-spin" /> : null}
-      Sign in
-    </Button>
-  );
-}
-
 export function LoginForm() {
-  const [error, formAction] = useActionState(authenticate, undefined);
+  const [error, setError] = useState<string | undefined>();
+  const [pending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  // Controlled so the email is preserved when a failed submit re-renders the form
-  // (React resets uncontrolled fields after a form action).
   const [email, setEmail] = useState("");
 
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPending(true);
+    setError(undefined);
+
+    const formData = new FormData(e.currentTarget);
+    const err = await authenticate(undefined, formData);
+    if (!err) {
+      // Full page load avoids RSC soft-navigation failures after Server Actions.
+      window.location.assign("/dashboard");
+      return;
+    }
+
+    setError(err);
+    setPending(false);
+  }
+
   return (
-    <form action={formAction} className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="email">Email</Label>
         <Input
@@ -38,6 +43,7 @@ export function LoginForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
+          disabled={pending}
         />
       </div>
       <div className="space-y-2">
@@ -49,6 +55,7 @@ export function LoginForm() {
             type={showPassword ? "text" : "password"}
             autoComplete="current-password"
             required
+            disabled={pending}
             className="pr-10"
           />
           <button
@@ -69,7 +76,10 @@ export function LoginForm() {
         </div>
       ) : null}
 
-      <SubmitButton />
+      <Button type="submit" className="w-full" disabled={pending}>
+        {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+        Sign in
+      </Button>
     </form>
   );
 }
