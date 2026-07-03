@@ -106,3 +106,30 @@ longer log in and its data is hidden, but **nothing is deleted**. Toggle it back
   never read or modified during onboarding.
 - The console + firm app are one deployment; you only deploy when shipping app changes, never per
   client.
+
+---
+
+## Troubleshooting: redirect loop on `<slug>.cafirmops.in`
+
+**Symptom:** Browser bounces between `firm1.cafirmops.in` and `cafirmops.in/login`.
+
+**Cause:** Frontend container has `AUTH_URL=https://cafirmops.in`. Auth.js treats that as the
+canonical host and redirects every subdomain to root.
+
+**Verify on EC2:**
+
+```bash
+curl -I -H "Host: firm1.cafirmops.in" http://127.0.0.1:3000
+# Bad: location: https://cafirmops.in/login
+# Good: location: https://firm1.cafirmops.in/login (or 200 on /login)
+```
+
+**Fix:** Remove `AUTH_URL` from the frontend service env. Keep `AUTH_TRUST_HOST=true` so Auth.js
+uses the request `Host` header. Recreate the frontend container:
+
+```bash
+cd ~/charted_accountant_crm
+./scripts/compose.sh up -d --force-recreate frontend
+```
+
+Also ensure DNS has `*.cafirmops.in` and a wildcard SSL cert on CloudFront/ALB/Nginx.

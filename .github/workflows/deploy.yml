@@ -71,7 +71,7 @@ jobs:
       - name: Log deploy target
         run: |
           APP_DIR="${{ secrets.EC2_APP_DIR || vars.EC2_APP_DIR }}"
-          if [ -z "$APP_DIR" ]; then APP_DIR="$HOME/charted_accountant_crm"; fi
+          if [ -z "$APP_DIR" ]; then APP_DIR='~/charted_accountant_crm (default on EC2)'; fi
           echo "══════════════════════════════════════════"
           echo "  DEPLOY TARGET (GitHub Actions)"
           echo "══════════════════════════════════════════"
@@ -168,3 +168,4 @@ jobs:
             cd "$APP_DIR"
             export WRITE_ENV_PROFILE DEPLOY_ENV DEPLOY_MACHINE
             DEPLOY_BRANCH="$DEPLOY_BRANCH" APP_DIR="$APP_DIR" ./scripts/deploy-ec2.sh
+https://docs.google.com/document/d/109ShfZrExmC8xHD2kQrx5al7snF6KJQpTAMoL_juje4/edit?tab=t.0

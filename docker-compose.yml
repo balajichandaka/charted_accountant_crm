@@ -78,9 +78,10 @@ services:
     environment:
       BACKEND_URL: "http://backend:4000"
       AUTH_SECRET: "iSXPhZRT+rGUrCkGLCzc8pct7qUYmqP0HCMGZN7sYB0="
+      # Multi-tenant: each firm is <slug>.cafirmops.in — do NOT set AUTH_URL to the
+      # root domain or Auth.js redirects firm1.cafirmops.in → cafirmops.in (loop).
       AUTH_TRUST_HOST: "true"
-      AUTH_URL: "${APP_PUBLIC_URL:-https://cafirmops.in}"
-      APP_URL: "${APP_PUBLIC_URL:-https://cafirmops.in}"
+      NEXT_PUBLIC_ROOT_DOMAIN: "${NEXT_PUBLIC_ROOT_DOMAIN:-cafirmops.in}"
       NODE_ENV: production
     ports:
       - "${APP_PORT:-3000}:3000"
