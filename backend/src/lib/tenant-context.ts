@@ -29,3 +29,8 @@ export function requireFirmId(): string {
   }
   return firmId;
 }
+
+/** Bind firm context to the current request for all downstream async handlers. */
+export function enterFirmContext(firmId: string): void {
+  storage.enterWith({ firmId });
+}

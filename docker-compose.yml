@@ -71,6 +71,9 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # Same value at build + runtime — prevents "Failed to find Server Action" after redeploy.
+        NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: "${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-iSXPhZRT+rGUrCkGLCzc8pct7qUYmqP0HCMGZN7sYB0=}"
     restart: unless-stopped
     depends_on:
       backend:
@@ -82,6 +85,7 @@ services:
       # root domain or Auth.js redirects firm1.cafirmops.in → cafirmops.in (loop).
       AUTH_TRUST_HOST: "true"
       NEXT_PUBLIC_ROOT_DOMAIN: "${NEXT_PUBLIC_ROOT_DOMAIN:-cafirmops.in}"
+      NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: "${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-iSXPhZRT+rGUrCkGLCzc8pct7qUYmqP0HCMGZN7sYB0=}"
       NODE_ENV: production
     ports:
       - "${APP_PORT:-3000}:3000"

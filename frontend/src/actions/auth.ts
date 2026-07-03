@@ -1,6 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
 import { signIn, signOut } from "@/lib/auth";
 import { loginWithBackend } from "@/lib/backend-auth";
@@ -35,7 +36,9 @@ export async function authenticate(
   }
 
   try {
-    await signIn("credentials", {
+    // Set the session cookie without Auth.js building an absolute redirect URL
+    // (behind Docker/proxy that can produce an unreachable host after login).
+    const result = await signIn("credentials", {
       email: user.email,
       password: "verified",
       id: user.id,
@@ -43,14 +46,19 @@ export async function authenticate(
       role: user.role,
       firmId: user.firmId,
       token: Buffer.from(user.backendToken, "utf8").toString("base64url"),
-      redirectTo: "/dashboard",
+      redirect: false,
     });
+    if (result?.error) {
+      return "Invalid email or password.";
+    }
   } catch (error) {
     if (error instanceof AuthError) {
       return "Invalid email or password.";
     }
     throw error;
   }
+
+  redirect("/dashboard");
 }
 
 export async function logout() {

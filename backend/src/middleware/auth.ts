@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { basePrisma } from "../lib/prisma";
-import { runWithFirm } from "../lib/tenant-context";
+import { enterFirmContext } from "../lib/tenant-context";
 import { verifyToken, type JwtPayload } from "../lib/jwt";
 
 declare global {
@@ -62,10 +62,9 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
     firm: user.firmId,
   };
 
-  // Enter the tenant context for the rest of the request so every scoped Prisma
-  // query auto-filters to this firm. Downstream async handlers keep the context
-  // across their awaits.
-  runWithFirm(user.firmId, () => next());
+  // Bind tenant context for the full request (including async route handlers).
+  enterFirmContext(user.firmId);
+  next();
 }
 
 export function requireCA(req: Request, res: Response, next: NextFunction) {

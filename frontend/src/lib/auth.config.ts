@@ -1,26 +1,11 @@
 import type { NextAuthConfig } from "next-auth";
 import { NextResponse } from "next/server";
 import type { Role } from "@/types/domain";
+import { isBackendTokenUsable } from "@/lib/backend-token";
 import { firmSlugFromHost } from "@/lib/tenant";
 
-function decodeJwtPayload(token: string): { exp?: number } | null {
-  try {
-    const part = token.split(".")[1];
-    if (!part) return null;
-    const json = atob(part.replace(/-/g, "+").replace(/_/g, "/"));
-    return JSON.parse(json) as { exp?: number };
-  } catch {
-    return null;
-  }
-}
-
-function isBackendTokenUsable(token: string): boolean {
-  const payload = decodeJwtPayload(token);
-  if (!payload) return false;
-  if (typeof payload.exp === "number" && payload.exp * 1000 <= Date.now()) {
-    return false;
-  }
-  return true;
+function hasValidSession(auth: { user?: unknown; backendToken?: string } | null): boolean {
+  return !!auth?.user && isBackendTokenUsable(auth.backendToken);
 }
 
 export const authConfig = {
@@ -31,9 +16,8 @@ export const authConfig = {
   callbacks: {
     authorized({ auth, request }) {
       const { nextUrl } = request;
-      const isLoggedIn = !!auth?.user;
-      const hasBackendToken = !!auth?.backendToken;
       const isLoginPage = nextUrl.pathname === "/login";
+      const sessionOk = hasValidSession(auth);
 
       // Resolve the firm (tenant) from the subdomain and forward it as a trusted
       // request header. We always set/clear it here so a client can't spoof it.
@@ -45,7 +29,7 @@ export const authConfig = {
 
       if (isLoginPage) {
         // Only redirect away from login if the session is fully valid.
-        if (isLoggedIn && hasBackendToken) {
+        if (sessionOk) {
           // Stay on login while recovering from a stale/invalid backend token.
           if (nextUrl.searchParams.get("reauth") === "1") return pass();
           return NextResponse.redirect(new URL("/dashboard", nextUrl));
@@ -53,8 +37,9 @@ export const authConfig = {
         return pass();
       }
 
-      // Protected page: require both a user AND a backend token.
-      return isLoggedIn && hasBackendToken ? pass() : false;
+      // Protected page: stay on this host — never return false (Auth.js may redirect
+      // to a canonical AUTH_URL on the root domain and cause subdomain loops).
+      return sessionOk ? pass() : NextResponse.redirect(new URL("/login", nextUrl));
     },
     jwt({ token, user }) {
       if (user) {

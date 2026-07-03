@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { isBackendTokenUsable } from "@/lib/backend-token";
 
 export type SessionUser = {
   id: string;
@@ -22,7 +23,7 @@ export async function getToken(): Promise<string | undefined> {
 export async function requireUser(): Promise<SessionUser> {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (!session.backendToken) redirect("/api/auth/clear-session");
+  if (!isBackendTokenUsable(session.backendToken)) redirect("/api/auth/clear-session");
   return session.user as SessionUser;
 }
 

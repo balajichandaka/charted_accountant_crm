@@ -12,14 +12,25 @@ function redirectToSignIn(): never {
 export async function apiGet<T>(path: string, token?: string): Promise<T> {
   if (!token) redirectToSignIn();
 
-  const res = await fetch(`${BACKEND_URL}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BACKEND_URL}${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Backend unreachable";
+    throw new Error(`Could not reach the API (${msg}). Is the backend container running?`);
+  }
 
   if (res.status === 401) redirectToSignIn();
 
-  const json: ApiResponse<T> = await res.json();
+  let json: ApiResponse<T>;
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error(`API error (${res.status}): non-JSON response from backend`);
+  }
   if (!json.ok) throw new Error(json.error);
   return json.data;
 }

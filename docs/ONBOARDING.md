@@ -133,3 +133,30 @@ cd ~/charted_accountant_crm
 ```
 
 Also ensure DNS has `*.cafirmops.in` and a wildcard SSL cert on CloudFront/ALB/Nginx.
+
+---
+
+## Troubleshooting: "Failed to find Server Action" after deploy
+
+**Symptom:** Login form does nothing or shows "This page couldn't load"; frontend logs show:
+
+```text
+Failed to find Server Action. This request might be from an older or newer deployment.
+```
+
+**Cause:** Next.js Server Action IDs change on each build unless a stable
+`NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` is set **at Docker build time** (not only runtime).
+
+**Fix on EC2:**
+
+```bash
+cd ~/charted_accountant_crm
+git pull origin prod
+./scripts/compose.sh build --no-cache frontend
+./scripts/compose.sh up -d --force-recreate frontend
+```
+
+Then hard-refresh the browser (Ctrl+Shift+R) or use incognito. Invalidate CloudFront cache if used.
+
+**Prevent recurrence:** `docker-compose.yml` passes `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` as a
+build arg and runtime env (defaults to the same value as `AUTH_SECRET`).
