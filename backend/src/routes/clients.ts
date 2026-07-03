@@ -50,7 +50,7 @@ router.post("/", requireCA, async (req, res, next) => {
     if (!parsed.success) { res.status(400).json({ ok: false, error: "Validation failed" }); return; }
     const d = parsed.data!;
     const client = await prisma.client.create({
-      data: { name: d.name, companyName: clean(d.companyName as string | undefined), gstNumber: clean(d.gstNumber as string | undefined), billTo: clean(d.billTo as string | undefined), shipTo: clean(d.shipTo as string | undefined), rcm: d.rcm, creditPeriodDays: d.creditPeriodDays ?? null, state: clean(d.state as string | undefined), fullAddress: clean(d.fullAddress as string | undefined), email: clean(d.email as string | undefined), phone: clean(d.phone as string | undefined), notes: clean(d.notes as string | undefined) },
+      data: { firmId: req.user!.firm, name: d.name, companyName: clean(d.companyName as string | undefined), gstNumber: clean(d.gstNumber as string | undefined), billTo: clean(d.billTo as string | undefined), shipTo: clean(d.shipTo as string | undefined), rcm: d.rcm, creditPeriodDays: d.creditPeriodDays ?? null, state: clean(d.state as string | undefined), fullAddress: clean(d.fullAddress as string | undefined), email: clean(d.email as string | undefined), phone: clean(d.phone as string | undefined), notes: clean(d.notes as string | undefined) },
     });
     res.json({ ok: true, data: { id: client.id } });
   } catch (err) { next(err); }

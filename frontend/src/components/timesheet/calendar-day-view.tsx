@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import {
@@ -11,6 +11,8 @@ import {
   GRID_HEIGHT_PX,
   DAY_START,
   DAY_END,
+  SCROLL_VIEWPORT_PX,
+  DEFAULT_SCROLL_MINUTES,
 } from "./calendar-utils";
 import { DayTimeBlocks } from "./day-time-blocks";
 import { useDragCreate } from "./time-block";
@@ -28,7 +30,16 @@ export function CalendarDayView({
   tickets: TicketOption[];
 }) {
   const columnRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+
+  // Open the scroll view near the start of the work day rather than midnight.
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop =
+        (DEFAULT_SCROLL_MINUTES / (DAY_END - DAY_START)) * GRID_HEIGHT_PX;
+    }
+  }, []);
   const [formMode, setFormMode] = useState<
     | { kind: "create"; workDate: string; startMinutes: number; minutes: number }
     | { kind: "edit"; entry: TimesheetEntry }
@@ -53,6 +64,11 @@ export function CalendarDayView({
         <div className="border-b bg-muted/30 px-4 py-2 text-center">
           <span className="text-sm font-semibold">{format(new Date(date), "EEEE, dd MMM yyyy")}</span>
         </div>
+        <div
+          ref={scrollRef}
+          className="overflow-y-auto"
+          style={{ maxHeight: SCROLL_VIEWPORT_PX }}
+        >
         <div className="grid grid-cols-[3.5rem_1fr]">
           <div className="relative" style={{ height: GRID_HEIGHT_PX }}>
             {hours.map((h) => (
@@ -98,6 +114,7 @@ export function CalendarDayView({
               }}
             />
           </div>
+        </div>
         </div>
       </div>
 

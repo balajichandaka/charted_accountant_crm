@@ -34,9 +34,9 @@ router.post("/", async (req, res, next) => {
     if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.issues[0]?.message }); return; }
     const { name, email, role, password } = parsed.data;
     if (!password) { res.status(400).json({ ok: false, error: "Password is required." }); return; }
-    const exists = await prisma.user.findUnique({ where: { email } });
+    const exists = await prisma.user.findFirst({ where: { email } });
     if (exists) { res.status(400).json({ ok: false, error: "Email already in use." }); return; }
-    await prisma.user.create({ data: { name, email, role, passwordHash: bcrypt.hashSync(password, 10) } });
+    await prisma.user.create({ data: { firmId: req.user!.firm, name, email, role, passwordHash: bcrypt.hashSync(password, 10) } });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -46,7 +46,7 @@ router.put("/:id", async (req, res, next) => {
     const parsed = employeeSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.issues[0]?.message }); return; }
     const { name, email, role, password } = parsed.data;
-    const owner = await prisma.user.findUnique({ where: { email } });
+    const owner = await prisma.user.findFirst({ where: { email } });
     if (owner && owner.id !== req.params.id) { res.status(400).json({ ok: false, error: "Email already in use." }); return; }
     await prisma.user.update({ where: { id: req.params.id }, data: { name, email, role, ...(password ? { passwordHash: bcrypt.hashSync(password, 10) } : {}) } });
     res.json({ ok: true });

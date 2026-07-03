@@ -38,9 +38,21 @@ async function main() {
   console.log("Seeding demo data...");
   const passwordHash = bcrypt.hashSync(DEMO_PASSWORD, 10);
 
+  // --- Firm (tenant) that owns all seeded data ---
+  // Slug matches NEXT_PUBLIC_DEFAULT_FIRM_SLUG for local dev on plain localhost.
+  const firm = await prisma.firm.create({
+    data: { name: "Demo CA Firm", slug: process.env.SEED_FIRM_SLUG ?? "demo", brandName: "Demo CA Firm" },
+  });
+  const firmId = firm.id;
+
+  // Per-firm ticket counter (the app's Prisma extension does this at runtime;
+  // the seed assigns numbers directly since it uses the raw client).
+  let ticketSeq = 0;
+
   // --- Users ---
   const ca = await prisma.user.create({
     data: {
+      firmId,
       name: "Suresh Kumar (CA)",
       email: "ca@firm.test",
       passwordHash,
@@ -49,6 +61,7 @@ async function main() {
   });
   const priya = await prisma.user.create({
     data: {
+      firmId,
       name: "Priya Sharma",
       email: "priya@firm.test",
       passwordHash,
@@ -57,6 +70,7 @@ async function main() {
   });
   const rahul = await prisma.user.create({
     data: {
+      firmId,
       name: "Rahul Verma",
       email: "rahul@firm.test",
       passwordHash,
@@ -65,6 +79,7 @@ async function main() {
   });
   const meena = await prisma.user.create({
     data: {
+      firmId,
       name: "Meena Iyer (Manager)",
       email: "meena@firm.test",
       passwordHash,
@@ -75,13 +90,14 @@ async function main() {
   // --- Categories ---
   const categories: Record<string, string> = {};
   for (const c of CATEGORIES) {
-    const cat = await prisma.category.create({ data: c });
+    const cat = await prisma.category.create({ data: { ...c, firmId } });
     categories[c.name] = cat.id;
   }
 
   // --- Clients (Sheet-2 fields) ---
   const acme = await prisma.client.create({
     data: {
+      firmId,
       name: "Acme Traders Pvt Ltd",
       companyName: "Acme Traders Pvt Ltd",
       gstNumber: "29AABCA1234F1Z5",
@@ -97,6 +113,7 @@ async function main() {
   });
   const nova = await prisma.client.create({
     data: {
+      firmId,
       name: "Nova Foods LLP",
       companyName: "Nova Foods LLP",
       gstNumber: "27AAGFN5678K1Z2",
@@ -111,6 +128,7 @@ async function main() {
   });
   const zenith = await prisma.client.create({
     data: {
+      firmId,
       name: "Zenith Textiles",
       companyName: "Zenith Textiles",
       gstNumber: "24AAACZ9012M1Z9",
@@ -126,6 +144,7 @@ async function main() {
   // --- Work Templates (Task + ordered Sub-tasks) ---
   const incorporation = await prisma.workTemplate.create({
     data: {
+      firmId,
       name: "Company Incorporation",
       categoryId: categories["MCA Filings"],
       documentsRequired:
@@ -140,7 +159,7 @@ async function main() {
           { title: "Incorporation Process", order: 2 },
           { title: "Submission - Final", order: 3 },
           { title: "Approval / Remarks", order: 4 },
-        ],
+        ].map((s) => ({ ...s, firmId })),
       },
     },
     include: { subtasks: { orderBy: { order: "asc" } } },
@@ -148,6 +167,7 @@ async function main() {
 
   const gstFiling = await prisma.workTemplate.create({
     data: {
+      firmId,
       name: "GST Monthly Filing",
       categoryId: categories["GST"],
       documentsRequired: "Sales register, Purchase register, Bank statement",
@@ -161,7 +181,7 @@ async function main() {
           { title: "Prepare GSTR-1", order: 2 },
           { title: "File GSTR-3B", order: 3 },
           { title: "Share acknowledgement", order: 4 },
-        ],
+        ].map((s) => ({ ...s, firmId })),
       },
     },
     include: { subtasks: { orderBy: { order: "asc" } } },
@@ -169,6 +189,7 @@ async function main() {
 
   const itr = await prisma.workTemplate.create({
     data: {
+      firmId,
       name: "Income Tax Return",
       categoryId: categories["Income Tax"],
       documentsRequired: "Form 16, Form 26AS, Bank interest certificates",
@@ -182,7 +203,7 @@ async function main() {
           { title: "Prepare computation sheet", order: 2 },
           { title: "File ITR", order: 3 },
           { title: "Share acknowledgement", order: 4 },
-        ],
+        ].map((s) => ({ ...s, firmId })),
       },
     },
     include: { subtasks: { orderBy: { order: "asc" } } },
@@ -220,6 +241,8 @@ async function main() {
         : null;
     return prisma.ticket.create({
       data: {
+        firmId,
+        ticketNumber: ++ticketSeq,
         title: template.name,
         status,
         priority: template.defaultPriority,
@@ -238,6 +261,7 @@ async function main() {
         completedAt: completed ? new Date(Date.now() - 86400000) : null,
         subtasks: {
           create: template.subtasks.map((s, i) => ({
+            firmId,
             title: s.title,
             order: s.order,
             status: i < doneSubtasks ? SubtaskStatus.DONE : SubtaskStatus.TODO,
@@ -247,13 +271,13 @@ async function main() {
         timeEntries: loggedMinutes
           ? {
               create: [
-                { userId: assigneeId, minutes: Math.round(loggedMinutes * 0.6), workDate: new Date(Date.now() - 86400000), description: "Initial work" },
-                { userId: assigneeId, minutes: Math.round(loggedMinutes * 0.4), workDate: new Date(), description: "Follow-up" },
+                { firmId, userId: assigneeId, minutes: Math.round(loggedMinutes * 0.6), workDate: new Date(Date.now() - 86400000), description: "Initial work" },
+                { firmId, userId: assigneeId, minutes: Math.round(loggedMinutes * 0.4), workDate: new Date(), description: "Follow-up" },
               ],
             }
           : undefined,
         activities: {
-          create: { type: ActivityType.CREATED, actorId: ca.id },
+          create: { firmId, type: ActivityType.CREATED, actorId: ca.id },
         },
       },
     });
@@ -324,6 +348,7 @@ async function main() {
   // --- A recurring schedule: monthly GST filing for Acme ---
   await prisma.recurringSchedule.create({
     data: {
+      firmId,
       clientId: acme.id,
       templateId: gstFiling.id,
       assigneeId: rahul.id,
@@ -333,6 +358,9 @@ async function main() {
       nextRunAt: new Date(Date.now() + 2 * 86400000),
     },
   });
+
+  // Persist the per-firm ticket counter so app-created tickets continue the sequence.
+  await prisma.firm.update({ where: { id: firmId }, data: { ticketSeq } });
 
   console.log("✓ Seed complete.");
   console.log(`  Login: ca@firm.test / ${DEMO_PASSWORD} (CA)`);

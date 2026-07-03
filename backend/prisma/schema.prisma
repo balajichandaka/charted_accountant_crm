@@ -1,5 +1,9 @@
 // CA Practice Management System — data model
 // See docs/superpowers/specs and the approved plan for the domain model.
+//
+// Multi-tenant: every business model carries a `firmId` (tenant) FK. Row-level
+// isolation is enforced centrally by the Prisma tenant-scoping extension
+// (see src/lib/prisma.ts + src/lib/tenant-context.ts), not per-query.
 
 generator client {
   provider = "prisma-client-js"
@@ -85,18 +89,91 @@ enum NotificationStatus {
 }
 
 // ---------------------------------------------------------------------------
+// Platform admins — super-admins who provision/manage firms. NOT firm users:
+// no firmId, global-unique email. Always accessed via basePrisma (never the
+// tenant-scoped client).
+// ---------------------------------------------------------------------------
+
+model PlatformAdmin {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Firm (tenant) — one accounting firm using the product. Root of every scope.
+// ---------------------------------------------------------------------------
+
+model Firm {
+  id       String  @id @default(cuid())
+  name     String
+  slug     String  @unique // subdomain: <slug>.cafirmops.in
+  isActive Boolean @default(true)
+
+  // Per-firm ticket counter (ticketNumber is unique within a firm, not globally).
+  ticketSeq Int @default(0)
+
+  // Branding / contact (used from Phase 3; nullable so firms start blank).
+  brandName       String?
+  logoUrl         String?
+  primaryColorHex String?
+  contactEmail    String?
+  contactPhone    String?
+  escalationName  String?
+  escalationEmail String?
+  escalationPhone String?
+  emailFromName   String?
+
+  // Per-firm outbound email (SMTP). The app-password is AES-256-GCM encrypted
+  // at rest (smtpPassEnc) and never returned by the API. When unset, the firm
+  // falls back to the platform's global SMTP_* env transport.
+  smtpHost    String?
+  smtpPort    Int?
+  smtpSecure  Boolean?
+  smtpUser    String?
+  smtpPassEnc String?
+  smtpFrom    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users              User[]
+  clients            Client[]
+  categories         Category[]
+  workTemplates      WorkTemplate[]
+  templateSubtasks   TemplateSubtask[]
+  tickets            Ticket[]
+  ticketSubtasks     TicketSubtask[]
+  ticketComments     TicketComment[]
+  timeEntries        TimeEntry[]
+  attachments        Attachment[]
+  recurringSchedules RecurringSchedule[]
+  activityLogs       ActivityLog[]
+  notificationLogs   NotificationLog[]
+
+  @@index([isActive])
+}
+
+// ---------------------------------------------------------------------------
 // Users (CA + employees) — clients do NOT log in
 // ---------------------------------------------------------------------------
 
 model User {
   id           String   @id @default(cuid())
   name         String
-  email        String   @unique
+  email        String
   passwordHash String
   role         Role     @default(EMPLOYEE)
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  firmId String
+  firm   Firm   @relation(fields: [firmId], references: [id])
 
   assignedTickets    Ticket[]            @relation("TicketAssignee")
   managedTickets     Ticket[]            @relation("TicketManager")
@@ -109,6 +186,8 @@ model User {
   notifications      NotificationLog[]
   recurringSchedules RecurringSchedule[] @relation("ScheduleAssignee")
 
+  @@unique([firmId, email])
+  @@index([firmId])
   @@index([role])
 }
 
@@ -134,9 +213,13 @@ model Client {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  firmId String
+  firm   Firm   @relation(fields: [firmId], references: [id])
+
   tickets            Ticket[]
   recurringSchedules RecurringSchedule[]
 
+  @@index([firmId])
   @@index([isActive])
 }
 
@@ -146,15 +229,21 @@ model Client {
 
 model Category {
   id          String   @id @default(cuid())
-  name        String   @unique
+  name        String
   description String?
   colorHex    String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  firmId String
+  firm   Firm   @relation(fields: [firmId], references: [id])
+
   workTemplates WorkTemplate[]
   tickets       Ticket[]
+
+  @@unique([firmId, name])
+  @@index([firmId])
 }
 
 // ---------------------------------------------------------------------------
@@ -173,6 +262,9 @@ model WorkTemplate {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
+  firmId String
+  firm   Firm   @relation(fields: [firmId], references: [id])
+
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id])
 
@@ -180,6 +272,7 @@ model WorkTemplate {
   generatedTickets   Ticket[]
   recurringSchedules RecurringSchedule[]
 
+  @@index([firmId])
   @@index([categoryId])
 }
 
@@ -188,10 +281,14 @@ model TemplateSubtask {
   title      String
   order      Int
 
+  firmId String
+  firm   Firm   @relation(fields: [firmId], references: [id])
+
   templateId String
   template   WorkTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@unique([templateId, order])
+  @@index([firmId])
   @@index([templateId])
 }
 
@@ -201,7 +298,10 @@ model TemplateSubtask {
 
 model Ticket {
   id                String            @id @default(cuid())
-  ticketNumber      Int               @unique @default(autoincrement())
+  // Per-firm number, assigned by the tenant Prisma extension on create. The
+  // default 0 only makes the field optional in the create input type; it is
+  // always overwritten with the real per-firm sequence value.
+  ticketNumber      Int               @default(0)
   title             String
   description       String?
   status            TicketStatus      @default(OPEN)
@@ -216,6 +316,9 @@ model Ticket {
   completedAt       DateTime?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
+
+  firmId String
+  firm   Firm   @relation(fields: [firmId], references: [id])
 
   clientId   String
   client     Client        @relation(fields: [clientId], references: [id])
@@ -240,7 +343,9 @@ model Ticket {
   attachments Attachment[]
   activities  ActivityLog[]
 
+  @@unique([firmId, ticketNumber])
   @@unique([recurringScheduleId, periodLabel])
+  @@index([firmId])
   @@index([status])
   @@index([assigneeId])
   @@index([managerId])
@@ -255,11 +360,15 @@ model TicketSubtask {
   status      SubtaskStatus @default(TODO)
   completedAt DateTime?
 
+  firmId String
+  firm   Firm   @relation(fields: [firmId], references: [id])
+
   ticketId   String
   ticket     Ticket  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   assigneeId String?
   assignee   User?   @relation(fields: [assigneeId], references: [id])
 
+  @@index([firmId])
   @@index([ticketId])
 }
 
@@ -268,6 +377,9 @@ model TicketComment {
   body      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  firmId String
+  firm   Firm   @relation(fields: [firmId], references: [id])
 
   ticketId String
   ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
@@ -280,6 +392,7 @@ model TicketComment {
 
   attachments Attachment[]
 
+  @@index([firmId])
   @@index([ticketId])
 }
 
@@ -292,11 +405,15 @@ model TimeEntry {
   billable     Boolean  @default(true)
   createdAt    DateTime @default(now())
 
+  firmId String
+  firm   Firm   @relation(fields: [firmId], references: [id])
+
   ticketId String
   ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   userId   String
   user     User   @relation(fields: [userId], references: [id])
 
+  @@index([firmId])
   @@index([ticketId])
   @@index([userId, workDate])
 }
@@ -309,6 +426,9 @@ model Attachment {
   sizeBytes  Int
   createdAt  DateTime @default(now())
 
+  firmId String
+  firm   Firm   @relation(fields: [firmId], references: [id])
+
   ticketId     String
   ticket       Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   commentId    String?
@@ -316,6 +436,7 @@ model Attachment {
   uploadedById String
   uploadedBy   User   @relation(fields: [uploadedById], references: [id])
 
+  @@index([firmId])
   @@index([ticketId])
   @@index([commentId])
 }
@@ -335,6 +456,9 @@ model RecurringSchedule {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
+  firmId String
+  firm   Firm   @relation(fields: [firmId], references: [id])
+
   clientId   String
   client     Client       @relation(fields: [clientId], references: [id])
   templateId String
@@ -344,6 +468,7 @@ model RecurringSchedule {
 
   generatedTickets Ticket[]
 
+  @@index([firmId])
   @@index([isActive, nextRunAt])
 }
 
@@ -357,11 +482,15 @@ model ActivityLog {
   metadata  Json?
   createdAt DateTime     @default(now())
 
+  firmId String
+  firm   Firm   @relation(fields: [firmId], references: [id])
+
   actorId  String?
   actor    User?   @relation(fields: [actorId], references: [id])
   ticketId String?
   ticket   Ticket? @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
+  @@index([firmId])
   @@index([ticketId])
   @@index([createdAt])
 }
@@ -374,9 +503,13 @@ model NotificationLog {
   error     String?
   createdAt DateTime            @default(now())
 
+  firmId String
+  firm   Firm   @relation(fields: [firmId], references: [id])
+
   userId   String
   user     User    @relation(fields: [userId], references: [id])
   ticketId String?
 
+  @@index([firmId])
   @@index([userId])
 }

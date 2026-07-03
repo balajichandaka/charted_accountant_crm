@@ -48,7 +48,8 @@ router.post("/", async (req, res, next) => {
     const parsed = templateSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.issues[0]?.message }); return; }
     const d = parsed.data!;
-    const tmpl = await prisma.workTemplate.create({ data: { name: d.name, categoryId: d.categoryId, description: clean(d.description), documentsRequired: clean(d.documentsRequired), defaultFrequency: d.defaultFrequency, defaultBillable: d.defaultBillable, defaultPriority: d.defaultPriority, subtasks: { create: d.subtasks.map((s, i) => ({ title: s.title, order: i })) } } });
+    const firmId = req.user!.firm;
+    const tmpl = await prisma.workTemplate.create({ data: { firmId, name: d.name, categoryId: d.categoryId, description: clean(d.description), documentsRequired: clean(d.documentsRequired), defaultFrequency: d.defaultFrequency, defaultBillable: d.defaultBillable, defaultPriority: d.defaultPriority, subtasks: { create: d.subtasks.map((s, i) => ({ firmId, title: s.title, order: i })) } } });
     res.json({ ok: true, data: { id: tmpl.id } });
   } catch (err) { next(err); }
 });
@@ -58,9 +59,10 @@ router.put("/:id", async (req, res, next) => {
     const parsed = templateSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.issues[0]?.message }); return; }
     const d = parsed.data!;
+    const firmId = req.user!.firm;
     await prisma.$transaction([
       prisma.templateSubtask.deleteMany({ where: { templateId: req.params.id } }),
-      prisma.workTemplate.update({ where: { id: req.params.id }, data: { name: d.name, categoryId: d.categoryId, description: clean(d.description), documentsRequired: clean(d.documentsRequired), defaultFrequency: d.defaultFrequency, defaultBillable: d.defaultBillable, defaultPriority: d.defaultPriority, subtasks: { create: d.subtasks.map((s, i) => ({ title: s.title, order: i })) } } }),
+      prisma.workTemplate.update({ where: { id: req.params.id }, data: { name: d.name, categoryId: d.categoryId, description: clean(d.description), documentsRequired: clean(d.documentsRequired), defaultFrequency: d.defaultFrequency, defaultBillable: d.defaultBillable, defaultPriority: d.defaultPriority, subtasks: { create: d.subtasks.map((s, i) => ({ firmId, title: s.title, order: i })) } } }),
     ]);
     res.json({ ok: true });
   } catch (err) { next(err); }

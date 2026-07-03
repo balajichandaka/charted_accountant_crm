@@ -11,6 +11,8 @@ import analyticsRouter from "./routes/analytics";
 import timesheetRouter from "./routes/timesheet";
 import attachmentsRouter from "./routes/attachments";
 import cronRouter from "./routes/cron";
+import platformRouter from "./routes/platform";
+import firmRouter from "./routes/firm";
 import { errorHandler } from "./middleware/error";
 
 const app = express();
@@ -36,6 +38,8 @@ app.use("/api/analytics",  analyticsRouter);
 app.use("/api/timesheet",  timesheetRouter);
 app.use("/api/attachments", attachmentsRouter);
 app.use("/api/cron",       cronRouter);
+app.use("/api/platform",   platformRouter);
+app.use("/api/firm",       firmRouter);
 
 app.use(errorHandler);
 

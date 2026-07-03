@@ -144,8 +144,10 @@ router.post("/", async (req, res, next) => {
     const parsed = ticketSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.issues[0]?.message }); return; }
     const d = parsed.data!;
+    const firmId = req.user!.firm;
     const ticket = await prisma.ticket.create({
       data: {
+        firmId,
         title: d.title, description: d.description || null,
         clientId: d.clientId, categoryId: d.categoryId || null,
         templateId: d.templateId || null, assigneeId: d.assigneeId || null,
@@ -156,8 +158,8 @@ router.post("/", async (req, res, next) => {
         documentsRequired: d.documentsRequired || null,
         startDate: d.startDate ? new Date(d.startDate) : null,
         dueDate: d.dueDate ? new Date(d.dueDate) : null,
-        subtasks: { create: d.subtasks.map((s) => ({ title: s.title, order: s.order })) },
-        activities: { create: { type: "CREATED", actorId: req.user!.sub } },
+        subtasks: { create: d.subtasks.map((s) => ({ firmId, title: s.title, order: s.order })) },
+        activities: { create: { firmId, type: "CREATED", actorId: req.user!.sub } },
       },
     });
     // Notify assignee + manager + client that the ticket was created.
@@ -182,6 +184,7 @@ router.post("/", async (req, res, next) => {
         const dayOfMonth = MONTH_BASED.includes(d.frequency) && start ? start.getDate() : null;
         const created = await prisma.recurringSchedule.create({
           data: {
+            firmId,
             clientId: d.clientId,
             templateId: d.templateId,
             assigneeId: d.assigneeId || null,
@@ -227,7 +230,7 @@ router.put("/:id", async (req, res, next) => {
       const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id } });
       if (assignee && ticket) notifyTicketAssigned(ticket, assignee).catch(console.error);
     }
-    await prisma.activityLog.create({ data: { type: "UPDATED", actorId: req.user!.sub, ticketId: req.params.id } });
+    await prisma.activityLog.create({ data: { firmId: req.user!.firm, type: "UPDATED", actorId: req.user!.sub, ticketId: req.params.id } });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -237,7 +240,7 @@ router.patch("/:id/status", async (req, res, next) => {
   try {
     const { status } = req.body as { status: TicketStatus };
     await prisma.ticket.update({ where: { id: req.params.id }, data: { status, completedAt: status === "DONE" ? new Date() : null } });
-    await prisma.activityLog.create({ data: { type: "STATUS_CHANGED", actorId: req.user!.sub, ticketId: req.params.id, metadata: { status } } });
+    await prisma.activityLog.create({ data: { firmId: req.user!.firm, type: "STATUS_CHANGED", actorId: req.user!.sub, ticketId: req.params.id, metadata: { status } } });
     // On completion, notify assignee + manager + client.
     if (status === "DONE") notifyTicketParticipants(req.params.id, "COMPLETED").catch(console.error);
     res.json({ ok: true });
@@ -253,7 +256,7 @@ router.patch("/:id/assign", async (req, res, next) => {
       const assignee = await prisma.user.findUnique({ where: { id: assigneeId } });
       if (assignee) notifyTicketAssigned(ticket, assignee).catch(console.error);
     }
-    await prisma.activityLog.create({ data: { type: "ASSIGNED", actorId: req.user!.sub, ticketId: req.params.id } });
+    await prisma.activityLog.create({ data: { firmId: req.user!.firm, type: "ASSIGNED", actorId: req.user!.sub, ticketId: req.params.id } });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -263,7 +266,7 @@ router.patch("/:id/subtasks/:subId", async (req, res, next) => {
   try {
     const { status } = req.body as { status: "TODO" | "DONE" };
     await prisma.ticketSubtask.update({ where: { id: req.params.subId }, data: { status, completedAt: status === "DONE" ? new Date() : null } });
-    await prisma.activityLog.create({ data: { type: "SUBTASK_TOGGLED", actorId: req.user!.sub, ticketId: req.params.id } });
+    await prisma.activityLog.create({ data: { firmId: req.user!.firm, type: "SUBTASK_TOGGLED", actorId: req.user!.sub, ticketId: req.params.id } });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -291,6 +294,7 @@ router.post("/:id/time-entries", async (req, res, next) => {
     }
     await prisma.timeEntry.create({
       data: {
+        firmId: req.user!.firm,
         ticketId: req.params.id,
         userId: req.user!.sub,
         minutes: d.minutes,
@@ -300,7 +304,7 @@ router.post("/:id/time-entries", async (req, res, next) => {
         billable: d.billable ?? true,
       },
     });
-    await prisma.activityLog.create({ data: { type: "TIME_LOGGED", actorId: req.user!.sub, ticketId: req.params.id, metadata: { minutes: d.minutes } } });
+    await prisma.activityLog.create({ data: { firmId: req.user!.firm, type: "TIME_LOGGED", actorId: req.user!.sub, ticketId: req.params.id, metadata: { minutes: d.minutes } } });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -317,16 +321,19 @@ router.post("/:id/comments", upload.array("files", 5), async (req, res, next) =>
     }
     const comment = await prisma.ticketComment.create({
       data: {
+        firmId: req.user!.firm,
         ticketId: req.params.id,
         authorId: req.user!.sub,
         body: body.trim() || "(attachment)",
         parentId,
         attachments: {
           create: files.map((f) => ({
+            firmId: req.user!.firm,
             ticketId: req.params.id,
             uploadedById: req.user!.sub,
             fileName: f.originalname,
-            storageKey: f.filename,
+            // Key includes the per-firm subdirectory the file was stored in.
+            storageKey: `${req.user!.firm}/${f.filename}`,
             mimeType: f.mimetype,
             sizeBytes: f.size,
           })),
@@ -334,7 +341,7 @@ router.post("/:id/comments", upload.array("files", 5), async (req, res, next) =>
       },
       include: { author: true, attachments: true, replies: { include: { author: true, attachments: true } } },
     });
-    await prisma.activityLog.create({ data: { type: files.length ? "ATTACHMENT_ADDED" : "COMMENTED", actorId: req.user!.sub, ticketId: req.params.id } });
+    await prisma.activityLog.create({ data: { firmId: req.user!.firm, type: files.length ? "ATTACHMENT_ADDED" : "COMMENTED", actorId: req.user!.sub, ticketId: req.params.id } });
     res.json({ ok: true, data: comment });
   } catch (err) { next(err); }
 });

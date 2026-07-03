@@ -17,11 +17,13 @@ import {
   CalendarClock,
   Settings,
   LogOut,
+  KeyRound,
   Menu,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/actions/auth";
+import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -113,21 +115,23 @@ function NavLinks({
   );
 }
 
-function Brand() {
+function Brand({ brandName, logoUrl }: { brandName?: string; logoUrl?: string }) {
+  const name = brandName || "CA Firm Ops";
   return (
     <div className="flex items-center gap-2.5 px-5 py-4">
       <div className="size-9 shrink-0 overflow-hidden rounded-lg">
         <Image
-          src="/logo-blue.png"
-          alt="CA Firm Ops"
+          src={logoUrl || "/logo-blue.png"}
+          alt={name}
           width={36}
           height={36}
           className="size-full object-cover"
           priority
+          unoptimized={!!logoUrl}
         />
       </div>
       <div className="leading-tight">
-        <p className="text-sm font-semibold text-sidebar-foreground">CA Firm Ops</p>
+        <p className="text-sm font-semibold text-sidebar-foreground">{name}</p>
         <p className="text-xs text-sidebar-foreground/60">Work Management</p>
       </div>
     </div>
@@ -137,18 +141,23 @@ function Brand() {
 export function AppShell({
   user,
   children,
+  brandName,
+  logoUrl,
 }: {
   user: SessionUser;
   children: React.ReactNode;
+  brandName?: string;
+  logoUrl?: string;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
       {/* Desktop sidebar */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex h-screen overflow-y-auto">
-        <Brand />
+        <Brand brandName={brandName} logoUrl={logoUrl} />
         <NavLinks pathname={pathname} role={user.role} />
         <div className="px-3 pb-4 text-xs text-sidebar-foreground/40">
           {user.role === "CA" ? "Administrator" : user.role === "MANAGER" ? "Manager" : "Employee"}
@@ -167,7 +176,7 @@ export function AppShell({
             </SheetTrigger>
             <SheetContent side="left" className="w-64 bg-sidebar p-0 [&>button]:text-sidebar-foreground">
               <SheetTitle className="sr-only">Navigation</SheetTitle>
-              <Brand />
+              <Brand brandName={brandName} logoUrl={logoUrl} />
               <NavLinks
                 pathname={pathname}
                 role={user.role}
@@ -201,6 +210,16 @@ export function AppShell({
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setPwOpen(true);
+                }}
+                className="cursor-pointer gap-2"
+              >
+                <KeyRound className="size-4" />
+                Change password
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <form action={logout}>
                   <button
@@ -220,6 +239,8 @@ export function AppShell({
           <div className="mx-auto flex w-full max-w-7xl flex-1 min-h-0 flex-col gap-6">{children}</div>
         </main>
       </div>
+
+      <ChangePasswordDialog open={pwOpen} onOpenChange={setPwOpen} />
     </div>
   );
 }

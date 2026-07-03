@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { format } from "date-fns";
 import { Download, Loader2, Columns3 } from "lucide-react";
 import { toast } from "sonner";
@@ -60,18 +60,6 @@ export function ReportPageClient({
 }) {
   const [cols, setCols] = useState<Record<string, boolean>>(loadColumns);
   const [busy, setBusy] = useState(false);
-  const headerRef = useRef<HTMLDivElement>(null);
-  const [headerH, setHeaderH] = useState(0);
-
-  // Measure sticky header height so thead can stick right below it
-  useEffect(() => {
-    const el = headerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => setHeaderH(el.offsetHeight));
-    ro.observe(el);
-    setHeaderH(el.offsetHeight);
-    return () => ro.disconnect();
-  }, []);
 
   const persist = (next: Record<string, boolean>) => {
     setCols(next);
@@ -109,7 +97,6 @@ export function ReportPageClient({
     <>
       {/* ── Sticky block: title + filters + toolbar ── */}
       <div
-        ref={headerRef}
         className="sticky top-0 z-20 -mx-4 border-b bg-background/95 backdrop-blur lg:-mx-8"
       >
         {/* Page title */}
@@ -175,13 +162,10 @@ export function ReportPageClient({
         </div>
       </div>
 
-      {/* ── Table — rows scroll in main ── */}
-      <div className="-mx-4 overflow-x-auto lg:-mx-8">
+      {/* ── Table — header pinned to the top of its own scroll area ── */}
+      <div className="-mx-4 max-h-[calc(100vh-15rem)] overflow-auto lg:-mx-8">
         <Table>
-          <TableHeader
-            className="sticky z-10 bg-card"
-            style={{ top: headerH }}
-          >
+          <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow className="bg-primary/10 hover:bg-primary/10">
               {visible.map((c) => (
                 <TableHead
