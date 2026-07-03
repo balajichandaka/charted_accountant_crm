@@ -3,6 +3,8 @@ import { getToken } from "@/lib/session";
 import { apiGet } from "@/lib/api";
 import { PageHeader } from "@/components/page-header";
 import { CategoryManager } from "@/components/settings/category-manager";
+import { FirmBranding, type FirmProfile } from "@/components/settings/firm-branding";
+import { EmailSettings, type FirmEmailSettings } from "@/components/settings/email-settings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Category = {
@@ -19,13 +21,32 @@ export default async function SettingsPage() {
   const token = await getToken();
 
   const categories = await apiGet<Category[]>("/api/categories", token);
+  const firm = await apiGet<FirmProfile & FirmEmailSettings>("/api/firm", token);
 
   return (
     <>
       <PageHeader
         title="Settings"
-        description="Manage your firm's categories of work and account."
+        description="Manage your firm's branding, categories of work, and account."
       />
+
+      <Card className="shrink-0">
+        <CardHeader>
+          <CardTitle>Firm profile &amp; branding</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <FirmBranding firm={firm} />
+        </CardContent>
+      </Card>
+
+      <Card className="shrink-0">
+        <CardHeader>
+          <CardTitle>Email sending (SMTP)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <EmailSettings firm={firm} />
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">

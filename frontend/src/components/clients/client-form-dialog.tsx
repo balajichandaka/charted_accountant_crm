@@ -126,10 +126,10 @@ export function ClientFormDialog({
           className="grid gap-4 sm:grid-cols-2"
         >
           <Field label="Client name *" error={errors.name?.message}>
-            <Input {...register("name")} placeholder="Acme Traders Pvt Ltd" />
+            <Input {...register("name")} placeholder="Ramesh Gupta" />
           </Field>
           <Field label="Company name" error={errors.companyName?.message}>
-            <Input {...register("companyName")} />
+            <Input {...register("companyName")} placeholder="Acme Traders Pvt Ltd" />
           </Field>
           <Field label="GST number" error={errors.gstNumber?.message}>
             <Input {...register("gstNumber")} placeholder="29AABCA1234F1Z5" />

@@ -21,6 +21,9 @@ function SubmitButton() {
 export function LoginForm() {
   const [error, formAction] = useActionState(authenticate, undefined);
   const [showPassword, setShowPassword] = useState(false);
+  // Controlled so the email is preserved when a failed submit re-renders the form
+  // (React resets uncontrolled fields after a form action).
+  const [email, setEmail] = useState("");
 
   return (
     <form action={formAction} className="space-y-4">
@@ -32,6 +35,8 @@ export function LoginForm() {
           type="email"
           placeholder="you@firm.com"
           autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           required
         />
       </div>

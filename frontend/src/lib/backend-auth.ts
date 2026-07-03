@@ -5,21 +5,24 @@ export type BackendLoginUser = {
   name: string;
   email: string;
   role: Role;
+  firmId: string;
   backendToken: string;
 };
 
 export async function loginWithBackend(
   email: string,
-  password: string
+  password: string,
+  firmSlug: string
 ): Promise<BackendLoginUser | null> {
   const backendUrl = process.env.BACKEND_URL ?? "http://localhost:4000";
+  if (!firmSlug) return null;
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const res = await fetch(`${backendUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, firmSlug }),
         cache: "no-store",
       });
 
@@ -28,7 +31,7 @@ export async function loginWithBackend(
         ok: boolean;
         data?: {
           token: string;
-          user: { id: string; name: string; email: string; role: Role };
+          user: { id: string; name: string; email: string; role: Role; firmId: string };
         };
       };
       try {

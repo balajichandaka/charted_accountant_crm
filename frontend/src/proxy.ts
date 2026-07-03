@@ -3,9 +3,10 @@
 export { auth as proxy } from "@/lib/edge-auth";
 
 // Run on all routes except Next internals, the auth API, cron APIs
-// (which authenticate via their own secret), and static assets.
+// (which authenticate via their own secret), the platform console (which uses
+// its own super-admin cookie auth), and static assets.
 export const config = {
   matcher: [
-    "/((?!api/auth|api/cron|_next/static|_next/image|favicon.ico|.*\\..*).*)",
+    "/((?!platform|api/auth|api/cron|_next/static|_next/image|favicon.ico|.*\\..*).*)",
   ],
 };

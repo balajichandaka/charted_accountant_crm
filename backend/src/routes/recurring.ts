@@ -48,7 +48,7 @@ router.post("/", async (req, res, next) => {
     if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.issues[0]?.message }); return; }
     const d = parsed.data!;
     const { nextRunAt } = await import("../lib/recurrence").then(m => ({ nextRunAt: m.computeNextRunAt(d.frequency, d.dayOfMonth) }));
-    const schedule = await prisma.recurringSchedule.create({ data: { clientId: d.clientId, templateId: d.templateId, assigneeId: d.assigneeId || null, frequency: d.frequency, dayOfMonth: d.dayOfMonth ?? null, dueOffsetDays: d.dueOffsetDays, nextRunAt } });
+    const schedule = await prisma.recurringSchedule.create({ data: { firmId: req.user!.firm, clientId: d.clientId, templateId: d.templateId, assigneeId: d.assigneeId || null, frequency: d.frequency, dayOfMonth: d.dayOfMonth ?? null, dueOffsetDays: d.dueOffsetDays, nextRunAt } });
     res.json({ ok: true, data: { id: schedule.id } });
   } catch (err) { next(err); }
 });

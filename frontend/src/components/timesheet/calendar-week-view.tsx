@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format, eachDayOfInterval } from "date-fns";
 import { cn } from "@/lib/utils";
 import {
@@ -12,6 +12,8 @@ import {
   GRID_HEIGHT_PX,
   DAY_START,
   DAY_END,
+  SCROLL_VIEWPORT_PX,
+  DEFAULT_SCROLL_MINUTES,
 } from "./calendar-utils";
 import { DayTimeBlocks } from "./day-time-blocks";
 import { TimeBlock, useDragCreate } from "./time-block";
@@ -31,7 +33,16 @@ export function CalendarWeekView({
   tickets: TicketOption[];
 }) {
   const days = eachDayOfInterval({ start: new Date(from), end: new Date(to) });
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+
+  // Open the scroll view near the start of the work day rather than midnight.
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop =
+        (DEFAULT_SCROLL_MINUTES / (DAY_END - DAY_START)) * GRID_HEIGHT_PX;
+    }
+  }, []);
   const [formMode, setFormMode] = useState<
     | { kind: "create"; workDate: string; startMinutes: number; minutes: number }
     | { kind: "edit"; entry: TimesheetEntry }
@@ -73,6 +84,11 @@ export function CalendarWeekView({
               </div>
             ))}
           </div>
+          <div
+            ref={scrollRef}
+            className="overflow-y-auto"
+            style={{ maxHeight: SCROLL_VIEWPORT_PX }}
+          >
           <div className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))]">
             <div className="relative" style={{ height: GRID_HEIGHT_PX }}>
               {hours.map((h) => (
@@ -125,6 +141,7 @@ export function CalendarWeekView({
                 </div>
               );
             })}
+          </div>
           </div>
         </div>
       </div>

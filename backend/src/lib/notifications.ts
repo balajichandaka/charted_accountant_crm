@@ -1,5 +1,7 @@
-import { sendEmail } from "./email";
+import { sendEmail, type SmtpConfig } from "./email";
+import { decryptSecret } from "./crypto";
 import { prisma } from "./prisma";
+import { requireFirmId } from "./tenant-context";
 import type { Ticket, User } from "@prisma/client";
 
 export type TicketEvent = "ASSIGNED" | "CREATED" | "COMPLETED";
@@ -13,25 +15,104 @@ type Recipient = {
 
 type TicketNotify = Pick<Ticket, "id" | "ticketNumber" | "title" | "description">;
 
-const FIRM_CONTACT = {
-  email: process.env.FIRM_CONTACT_EMAIL ?? "vscharanco@gmail.com",
-  phone: process.env.FIRM_CONTACT_PHONE ?? "6302846943",
-  escalationName: process.env.FIRM_ESCALATION_NAME ?? "Sai Charan",
-  escalationEmail: process.env.FIRM_ESCALATION_EMAIL ?? "vscharanca@gmail.com",
-  escalationPhone: process.env.FIRM_ESCALATION_PHONE ?? "9566278894",
+// Per-firm outbound contact/branding. Loaded from the firm row at send time,
+// with env vars as the only fallback (no hardcoded personal data).
+export type FirmComms = {
+  senderName: string;
+  email: string;
+  phone: string;
+  escalationName: string;
+  escalationEmail: string;
+  escalationPhone: string;
+};
+
+const ENV_CONTACT = {
+  email: process.env.FIRM_CONTACT_EMAIL ?? "",
+  phone: process.env.FIRM_CONTACT_PHONE ?? "",
+  escalationName: process.env.FIRM_ESCALATION_NAME ?? "",
+  escalationEmail: process.env.FIRM_ESCALATION_EMAIL ?? "",
+  escalationPhone: process.env.FIRM_ESCALATION_PHONE ?? "",
 };
 
 /** Display name from EMAIL_FROM, e.g. `Alert from CA Charan <a@b.com>` → `Alert from CA Charan`. */
-function emailSenderName(): string {
+function envSenderName(): string {
   const from = process.env.EMAIL_FROM ?? "CA Practice <no-reply@ca-practice.local>";
   const match = from.match(/^([^<]+)</);
   if (match) return match[1].trim().replace(/^"|"$/g, "");
   return from.includes("@") ? from.split("@")[0]! : from;
 }
 
-function subjectFor(event: TicketEvent, ticket: TicketNotify, recipient: Recipient): string {
-  const sender = emailSenderName();
-  if (event === "CREATED" && recipient.kind === "client") {
+/**
+ * Build the firm's per-firm SMTP config from its stored fields, or return
+ * undefined so the caller falls back to the platform env transport. The From
+ * header uses smtpFrom if set, otherwise the sender name + smtpUser mailbox.
+ * A malformed/undecryptable secret is treated as "no firm config" (fallback).
+ */
+export function buildSmtpConfig(
+  firm: {
+    smtpHost: string | null;
+    smtpPort: number | null;
+    smtpSecure: boolean | null;
+    smtpUser: string | null;
+    smtpPassEnc: string | null;
+    smtpFrom: string | null;
+  },
+  senderName: string
+): SmtpConfig | undefined {
+  if (!firm.smtpHost || !firm.smtpUser || !firm.smtpPassEnc) return undefined;
+  let pass: string;
+  try {
+    pass = decryptSecret(firm.smtpPassEnc);
+  } catch (err) {
+    console.error("[email] Failed to decrypt firm SMTP password; using env fallback.", err);
+    return undefined;
+  }
+  const port = firm.smtpPort ?? 587;
+  return {
+    host: firm.smtpHost,
+    port,
+    // secure MUST match the port: 465 = implicit TLS, 587/25 = plaintext+STARTTLS.
+    // Deriving it from the port avoids "wrong version number" TLS mismatches.
+    secure: port === 465,
+    user: firm.smtpUser,
+    pass,
+    from: firm.smtpFrom || `"${senderName.replace(/"/g, "")}" <${firm.smtpUser}>`,
+  };
+}
+
+/** Resolve the current firm's outbound contact/sender + SMTP config, falling back to env. */
+async function loadFirmContext(): Promise<{ comms: FirmComms; smtp?: SmtpConfig }> {
+  const firm = await prisma.firm.findFirst({
+    select: {
+      brandName: true,
+      emailFromName: true,
+      contactEmail: true,
+      contactPhone: true,
+      escalationName: true,
+      escalationEmail: true,
+      escalationPhone: true,
+      smtpHost: true,
+      smtpPort: true,
+      smtpSecure: true,
+      smtpUser: true,
+      smtpPassEnc: true,
+      smtpFrom: true,
+    },
+  });
+  const comms: FirmComms = {
+    senderName: firm?.emailFromName || firm?.brandName || envSenderName(),
+    email: firm?.contactEmail || ENV_CONTACT.email,
+    phone: firm?.contactPhone || ENV_CONTACT.phone,
+    escalationName: firm?.escalationName || ENV_CONTACT.escalationName,
+    escalationEmail: firm?.escalationEmail || ENV_CONTACT.escalationEmail,
+    escalationPhone: firm?.escalationPhone || ENV_CONTACT.escalationPhone,
+  };
+  const smtp = firm ? buildSmtpConfig(firm, comms.senderName) : undefined;
+  return { comms, smtp };
+}
+
+function subjectFor(event: TicketEvent, ticket: TicketNotify, recipient: Recipient, sender: string): string {
+  if ((event === "CREATED" || event === "COMPLETED") && recipient.kind === "client") {
     return `${sender} :`;
   }
   if (event === "ASSIGNED") {
@@ -43,7 +124,7 @@ function subjectFor(event: TicketEvent, ticket: TicketNotify, recipient: Recipie
   return `${sender} : Ticket #${ticket.ticketNumber} completed — ${ticket.title}`;
 }
 
-function clientCreatedBody(recipient: Recipient, ticket: TicketNotify): string {
+function clientCreatedBody(recipient: Recipient, ticket: TicketNotify, c: FirmComms): string {
   const work = ticket.description?.trim() || ticket.title;
   const name = recipient.name.replace(/"/g, "");
   return `<p>Hi &quot;${name}&quot;</p>
@@ -51,13 +132,13 @@ function clientCreatedBody(recipient: Recipient, ticket: TicketNotify): string {
 <p>Our team is handling the work assigned : &quot;${work.replace(/"/g, "")}&quot;</p>
 <p>Please contact for us any query regarding this to the below mentioned Mail and Number</p>
 <p>Contact Details :-</p>
-<p>Mail ID - ${FIRM_CONTACT.email}&nbsp;&nbsp;Phone - ${FIRM_CONTACT.phone}</p>
-<p>Escalation - ${FIRM_CONTACT.escalationName} - email - ${FIRM_CONTACT.escalationEmail}<br>
-Phone - ${FIRM_CONTACT.escalationPhone}</p>
+<p>Mail ID - ${c.email}&nbsp;&nbsp;Phone - ${c.phone}</p>
+<p>Escalation - ${c.escalationName} - email - ${c.escalationEmail}<br>
+Phone - ${c.escalationPhone}</p>
 <p>Thanks for the opportunity to serve you</p>`;
 }
 
-function clientCreatedText(recipient: Recipient, ticket: TicketNotify): string {
+function clientCreatedText(recipient: Recipient, ticket: TicketNotify, c: FirmComms): string {
   const work = ticket.description?.trim() || ticket.title;
   const name = recipient.name.replace(/"/g, "");
   return `Hi "${name}"
@@ -70,10 +151,40 @@ Please contact for us any query regarding this to the below mentioned Mail and N
 
 Contact Details :-
 
-Mail ID - ${FIRM_CONTACT.email}  Phone - ${FIRM_CONTACT.phone}
+Mail ID - ${c.email}  Phone - ${c.phone}
 
-Escalation - ${FIRM_CONTACT.escalationName} - email - ${FIRM_CONTACT.escalationEmail}
-Phone - ${FIRM_CONTACT.escalationPhone}
+Escalation - ${c.escalationName} - email - ${c.escalationEmail}
+Phone - ${c.escalationPhone}
+
+Thanks for the opportunity to serve you`;
+}
+
+function clientCompletedBody(recipient: Recipient, ticket: TicketNotify, c: FirmComms): string {
+  const name = recipient.name.replace(/"/g, "");
+  return `<p>Hi &quot;${name}&quot;</p>
+<p>Your Ticket (${ticket.title.replace(/"/g, "")}) is completed....</p>
+<p>Please contact for us any query regarding this to the below mentioned Mail and Number</p>
+<p>Contact Details :-</p>
+<p>Mail ID - ${c.email}&nbsp;&nbsp;Phone - ${c.phone}</p>
+<p>Escalation - ${c.escalationName} - email - ${c.escalationEmail}<br>
+Phone - ${c.escalationPhone}</p>
+<p>Thanks for the opportunity to serve you</p>`;
+}
+
+function clientCompletedText(recipient: Recipient, ticket: TicketNotify, c: FirmComms): string {
+  const name = recipient.name.replace(/"/g, "");
+  return `Hi "${name}"
+
+Your Ticket (${ticket.title.replace(/"/g, "")}) is completed....
+
+Please contact for us any query regarding this to the below mentioned Mail and Number
+
+Contact Details :-
+
+Mail ID - ${c.email}  Phone - ${c.phone}
+
+Escalation - ${c.escalationName} - email - ${c.escalationEmail}
+Phone - ${c.escalationPhone}
 
 Thanks for the opportunity to serve you`;
 }
@@ -82,12 +193,19 @@ function bodyFor(
   event: TicketEvent,
   recipient: Recipient,
   ticket: TicketNotify,
-  ticketUrl: string
+  ticketUrl: string,
+  comms: FirmComms
 ): { html: string; text?: string } {
   if (event === "CREATED" && recipient.kind === "client") {
     return {
-      html: clientCreatedBody(recipient, ticket),
-      text: clientCreatedText(recipient, ticket),
+      html: clientCreatedBody(recipient, ticket, comms),
+      text: clientCreatedText(recipient, ticket, comms),
+    };
+  }
+  if (event === "COMPLETED" && recipient.kind === "client") {
+    return {
+      html: clientCompletedBody(recipient, ticket, comms),
+      text: clientCompletedText(recipient, ticket, comms),
     };
   }
 
@@ -133,21 +251,26 @@ export async function notifyTicketEvent(
 ) {
   const appUrl = process.env.APP_URL ?? "http://localhost:3000";
   const ticketUrl = `${appUrl}/tickets/${ticket.id}`;
+  const { comms, smtp } = await loadFirmContext();
 
   for (const r of dedupeRecipients(recipients, event)) {
     if (!r.email) continue;
-    const subject = subjectFor(event, ticket, r);
-    const body = bodyFor(event, r, ticket, ticketUrl);
+    const subject = subjectFor(event, ticket, r, comms.senderName);
+    const body = bodyFor(event, r, ticket, ticketUrl, comms);
     try {
-      const sent = await sendEmail({
-        to: r.email,
-        subject,
-        html: body.html,
-        text: body.text,
-      });
+      const sent = await sendEmail(
+        {
+          to: r.email,
+          subject,
+          html: body.html,
+          text: body.text,
+        },
+        smtp
+      );
       if (r.userId) {
         await prisma.notificationLog.create({
           data: {
+            firmId: requireFirmId(),
             userId: r.userId,
             ticketId: ticket.id,
             channel: "EMAIL",
@@ -160,6 +283,7 @@ export async function notifyTicketEvent(
       if (r.userId) {
         await prisma.notificationLog.create({
           data: {
+            firmId: requireFirmId(),
             userId: r.userId,
             ticketId: ticket.id,
             channel: "EMAIL",

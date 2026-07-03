@@ -27,9 +27,9 @@ router.post("/", requireCA, async (req, res, next) => {
   try {
     const parsed = categorySchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.issues[0]?.message }); return; }
-    const exists = await prisma.category.findUnique({ where: { name: parsed.data.name } });
+    const exists = await prisma.category.findFirst({ where: { name: parsed.data.name } });
     if (exists) { res.status(400).json({ ok: false, error: "Category name already exists." }); return; }
-    await prisma.category.create({ data: { name: String(parsed.data.name), description: clean(String(parsed.data.description || "")), colorHex: clean(String(parsed.data.colorHex || "")) } });
+    await prisma.category.create({ data: { firmId: req.user!.firm, name: String(parsed.data.name), description: clean(String(parsed.data.description || "")), colorHex: clean(String(parsed.data.colorHex || "")) } });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

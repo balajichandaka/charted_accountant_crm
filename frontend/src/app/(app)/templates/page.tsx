@@ -81,8 +81,8 @@ export default async function TemplatesPage() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {items.map((t) => (
-                  <Link key={t.id} href={`/templates/${t.id}`}>
-                    <Card className="h-full transition-colors hover:border-primary/40">
+                  <Link key={t.id} href={`/templates/${t.id}`} className="group">
+                    <Card className="h-full cursor-pointer transition-all hover:border-primary hover:bg-accent/40 hover:shadow-md hover:-translate-y-0.5">
                       <CardContent className="space-y-3 p-5">
                         <div className="flex items-start justify-between gap-2">
                           <h3 className="font-medium">{t.name}</h3>

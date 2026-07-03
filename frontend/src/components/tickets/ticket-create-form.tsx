@@ -363,7 +363,10 @@ export function TicketCreateForm({
               </div>
               <div className="space-y-1.5">
                 <Label>Due date</Label>
-                <Input type="date" {...register("dueDate")} />
+                <Input type="date" min={watch("startDate") || undefined} {...register("dueDate")} />
+                {errors.dueDate ? (
+                  <p className="text-xs text-destructive">{errors.dueDate.message}</p>
+                ) : null}
               </div>
               <div className="space-y-1.5">
                 <Label>Billable</Label>

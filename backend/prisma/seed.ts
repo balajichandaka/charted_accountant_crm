@@ -22,9 +22,23 @@ async function main() {
     return;
   }
 
+  // Multi-tenant: every user belongs to a firm. The initial migration creates a
+  // default firm (id "firm_default", slug "firm1"); attach the bootstrap admin to
+  // the existing firm, or create one if none exists yet.
+  let firm = await prisma.firm.findFirst({ orderBy: { createdAt: "asc" } });
+  if (!firm) {
+    firm = await prisma.firm.create({
+      data: {
+        name: process.env.SEED_FIRM_NAME?.trim() || "Default Firm",
+        slug: process.env.SEED_FIRM_SLUG?.trim() || "firm1",
+      },
+    });
+  }
+
   const passwordHash = bcrypt.hashSync(password, 10);
   await prisma.user.create({
     data: {
+      firmId: firm.id,
       name,
       email,
       passwordHash,
@@ -32,7 +46,7 @@ async function main() {
     },
   });
 
-  console.log(`✓ Admin user created: ${email} (${name})`);
+  console.log(`✓ Admin user created: ${email} (${name}) in firm "${firm.name}" (${firm.slug}).`);
 }
 
 main()

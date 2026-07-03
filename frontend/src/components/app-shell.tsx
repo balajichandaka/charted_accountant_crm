@@ -17,11 +17,13 @@ import {
   CalendarClock,
   Settings,
   LogOut,
+  KeyRound,
   Menu,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/actions/auth";
+import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -113,21 +115,23 @@ function NavLinks({
   );
 }
 
-function Brand() {
+function Brand({ brandName, logoUrl }: { brandName?: string; logoUrl?: string }) {
+  const name = brandName || "CA Firm Ops";
   return (
     <div className="flex items-center gap-2.5 px-5 py-4">
       <div className="size-9 shrink-0 overflow-hidden rounded-lg">
         <Image
-          src="/logo-blue.png"
-          alt="CA Firm Ops"
+          src={logoUrl || "/logo-blue.png"}
+          alt={name}
           width={36}
           height={36}
           className="size-full object-cover"
           priority
+          unoptimized={!!logoUrl}
         />
       </div>
       <div className="leading-tight">
-        <p className="text-sm font-semibold text-sidebar-foreground">CA Firm Ops</p>
+        <p className="text-sm font-semibold text-sidebar-foreground">{name}</p>
         <p className="text-xs text-sidebar-foreground/60">Work Management</p>
       </div>
     </div>
@@ -137,27 +141,32 @@ function Brand() {
 export function AppShell({
   user,
   children,
+  brandName,
+  logoUrl,
 }: {
   user: SessionUser;
   children: React.ReactNode;
+  brandName?: string;
+  logoUrl?: string;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen w-full">
+    <div className="flex h-screen w-full overflow-hidden">
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
-        <Brand />
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex h-screen overflow-y-auto">
+        <Brand brandName={brandName} logoUrl={logoUrl} />
         <NavLinks pathname={pathname} role={user.role} />
         <div className="px-3 pb-4 text-xs text-sidebar-foreground/40">
           {user.role === "CA" ? "Administrator" : user.role === "MANAGER" ? "Manager" : "Employee"}
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur lg:px-6">
+        <header className="z-30 flex h-14 shrink-0 items-center gap-3 border-b bg-background px-4 lg:px-6">
           {/* Mobile menu */}
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
@@ -167,7 +176,7 @@ export function AppShell({
             </SheetTrigger>
             <SheetContent side="left" className="w-64 bg-sidebar p-0 [&>button]:text-sidebar-foreground">
               <SheetTitle className="sr-only">Navigation</SheetTitle>
-              <Brand />
+              <Brand brandName={brandName} logoUrl={logoUrl} />
               <NavLinks
                 pathname={pathname}
                 role={user.role}
@@ -201,6 +210,16 @@ export function AppShell({
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setPwOpen(true);
+                }}
+                className="cursor-pointer gap-2"
+              >
+                <KeyRound className="size-4" />
+                Change password
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <form action={logout}>
                   <button
@@ -216,10 +235,12 @@ export function AppShell({
           </DropdownMenu>
         </header>
 
-        <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">
-          <div className="mx-auto w-full max-w-7xl space-y-6">{children}</div>
+        <main className="flex flex-1 flex-col overflow-y-auto overscroll-none px-4 pb-6 lg:px-8 lg:pb-8">
+          <div className="mx-auto flex w-full max-w-7xl flex-1 min-h-0 flex-col gap-6">{children}</div>
         </main>
       </div>
+
+      <ChangePasswordDialog open={pwOpen} onOpenChange={setPwOpen} />
     </div>
   );
 }

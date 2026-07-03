@@ -1,9 +1,15 @@
 import { format } from "date-fns";
 
-export const DAY_START = 6 * 60;
-export const DAY_END = 20 * 60;
+// Full 24-hour day. The grid is taller than the viewport and scrolls; see
+// SCROLL_VIEWPORT_PX / DEFAULT_SCROLL_MINUTES for the scroll container.
+export const DAY_START = 0;
+export const DAY_END = 24 * 60;
 export const SLOT_MINUTES = 30;
-export const GRID_HEIGHT_PX = 840;
+export const HOUR_HEIGHT_PX = 56;
+export const GRID_HEIGHT_PX = (HOUR_HEIGHT_PX * (DAY_END - DAY_START)) / 60; // 24h grid
+// Visible height of the scrolling calendar area, and where it opens by default.
+export const SCROLL_VIEWPORT_PX = 620;
+export const DEFAULT_SCROLL_MINUTES = 7 * 60; // open near the start of the work day
 
 export type TimesheetEntry = {
   id: string;

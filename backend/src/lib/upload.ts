@@ -2,7 +2,9 @@ import multer from "multer";
 import fs from "fs";
 import path from "path";
 
-export const UPLOAD_DIR = process.env.UPLOAD_DIR ?? path.join(process.cwd(), "uploads");
+export const UPLOAD_DIR = path.resolve(
+  process.env.UPLOAD_DIR ?? path.join(process.cwd(), "uploads")
+);
 
 // Ensure the upload directory exists at boot.
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -22,7 +24,14 @@ const ALLOWED = new Set([
 ]);
 
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+  // Store each firm's uploads under its own subdirectory so files are isolated
+  // per tenant on disk (and keys map cleanly to per-firm prefixes for S3 later).
+  destination: (req, _file, cb) => {
+    const firmId = (req as { user?: { firm?: string } }).user?.firm;
+    const dir = firmId ? path.join(UPLOAD_DIR, firmId) : UPLOAD_DIR;
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
   filename: (_req, file, cb) => {
     const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     const ext = path.extname(file.originalname);

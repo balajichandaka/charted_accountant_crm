@@ -1,6 +1,7 @@
 import { addWeeks, addMonths, setDate, getISOWeek, getISOWeekYear, getDaysInMonth } from "date-fns";
 import type { Frequency } from "@prisma/client";
 import { prisma } from "./prisma";
+import { requireFirmId } from "./tenant-context";
 import { notifyTicketAssigned } from "./notifications";
 
 export function periodLabel(freq: Frequency, date: Date): string {
@@ -45,9 +46,11 @@ export async function generateRecurringTickets() {
       const label = periodLabel(schedule.frequency, now);
       const dueDate = new Date(now.getTime() + schedule.dueOffsetDays * 86400000);
       try {
+        const firmId = requireFirmId();
         const caUser = await prisma.user.findFirst({ where: { role: "CA" } });
         const ticket = await prisma.ticket.create({
           data: {
+            firmId,
             title: schedule.template.name,
             clientId: schedule.clientId,
             categoryId: schedule.template.categoryId,
@@ -61,8 +64,8 @@ export async function generateRecurringTickets() {
             recurringScheduleId: schedule.id,
             periodLabel: label,
             dueDate,
-            subtasks: { create: schedule.template.subtasks.map((s) => ({ title: s.title, order: s.order })) },
-            activities: { create: { type: "RECURRING_GENERATED" } },
+            subtasks: { create: schedule.template.subtasks.map((s) => ({ firmId, title: s.title, order: s.order })) },
+            activities: { create: { firmId, type: "RECURRING_GENERATED" } },
           },
         });
         if (schedule.assignee) notifyTicketAssigned(ticket, schedule.assignee).catch(console.error);

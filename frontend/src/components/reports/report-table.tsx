@@ -96,8 +96,9 @@ export function ReportTable({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+    <div className="flex flex-1 min-h-0 flex-col">
+      {/* Toolbar — fixed, does not scroll */}
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b px-6 py-3">
         <p className="text-sm text-muted-foreground">
           Showing <span className="font-medium text-foreground tabular">{rows.length}</span> ticket
           {rows.length === 1 ? "" : "s"}
@@ -136,9 +137,10 @@ export function ReportTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border">
+      {/* Table — only this area scrolls */}
+      <div className="flex-1 min-h-0 overflow-auto">
         <Table>
-          <TableHeader>
+          <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow className="bg-primary/10 hover:bg-primary/10">
               {visible.map((c) => (
                 <TableHead

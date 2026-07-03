@@ -18,6 +18,15 @@ const optionalId = z.string().optional().or(z.literal(""));
 const optionalDate = z.string().optional().or(z.literal("")); // "yyyy-mm-dd"
 const optionalHours = z.coerce.number().min(0).max(10000).optional();
 
+// Due date must not fall before the start date (ISO yyyy-mm-dd compares lexically).
+// Only enforced when both dates are provided.
+const dueAfterStart = (d: { startDate?: string; dueDate?: string }) =>
+  !d.startDate || !d.dueDate || d.dueDate >= d.startDate;
+const dueAfterStartError = {
+  message: "Due date can't be before the start date",
+  path: ["dueDate"],
+};
+
 export const createTicketSchema = z.object({
   title: z.string().trim().min(1, "Title is required"),
   clientId: z.string().min(1, "Select a client"),
@@ -35,7 +44,7 @@ export const createTicketSchema = z.object({
   dueDate: optionalDate,
   subtasks: z.array(z.object({ title: z.string().trim().min(1) })).default([]),
   recurring: z.boolean().optional().default(false),
-});
+}).refine(dueAfterStart, dueAfterStartError);
 
 export type CreateTicketInput = z.infer<typeof createTicketSchema>;
 export type CreateTicketFormValues = z.input<typeof createTicketSchema>;
@@ -54,6 +63,6 @@ export const updateTicketSchema = z.object({
   documentsRequired: optionalText,
   startDate: optionalDate,
   dueDate: optionalDate,
-});
+}).refine(dueAfterStart, dueAfterStartError);
 
 export type UpdateTicketFormValues = z.input<typeof updateTicketSchema>;

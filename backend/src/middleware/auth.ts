@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
-import { prisma } from "../lib/prisma";
+import { basePrisma } from "../lib/prisma";
+import { runWithFirm } from "../lib/tenant-context";
 import { verifyToken, type JwtPayload } from "../lib/jwt";
 
 declare global {
@@ -16,29 +17,55 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
     res.status(401).json({ ok: false, error: "Unauthorized" });
     return;
   }
+
+  let payload: JwtPayload;
   try {
-    const payload = verifyToken(header.slice(7));
-    const user = await prisma.user.findUnique({
-      where: { id: payload.sub },
-      select: { id: true, role: true, name: true, email: true, isActive: true },
-    });
-    if (!user || !user.isActive) {
-      res.status(401).json({
-        ok: false,
-        error: "Session invalid for this environment. Please log out and sign in again.",
-      });
-      return;
-    }
-    req.user = {
-      sub: user.id,
-      role: user.role,
-      name: user.name,
-      email: user.email,
-    };
-    next();
+    payload = verifyToken(header.slice(7));
   } catch {
     res.status(401).json({ ok: false, error: "Invalid or expired token" });
+    return;
   }
+
+  // Load the user by id with the UN-scoped client (there is no firm context yet),
+  // then verify the token's firm matches the user's firm and the firm is active.
+  const user = await basePrisma.user.findUnique({
+    where: { id: payload.sub },
+    select: {
+      id: true,
+      role: true,
+      name: true,
+      email: true,
+      isActive: true,
+      firmId: true,
+      firm: { select: { isActive: true } },
+    },
+  });
+
+  if (
+    !user ||
+    !user.isActive ||
+    !user.firm?.isActive ||
+    user.firmId !== payload.firm
+  ) {
+    res.status(401).json({
+      ok: false,
+      error: "Session invalid for this environment. Please log out and sign in again.",
+    });
+    return;
+  }
+
+  req.user = {
+    sub: user.id,
+    role: user.role,
+    name: user.name,
+    email: user.email,
+    firm: user.firmId,
+  };
+
+  // Enter the tenant context for the rest of the request so every scoped Prisma
+  // query auto-filters to this firm. Downstream async handlers keep the context
+  // across their awaits.
+  runWithFirm(user.firmId, () => next());
 }
 
 export function requireCA(req: Request, res: Response, next: NextFunction) {
