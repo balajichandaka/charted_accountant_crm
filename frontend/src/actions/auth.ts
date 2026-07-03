@@ -48,7 +48,8 @@ export async function authenticate(
       redirect: false,
     });
     if (result?.error) {
-      return "Invalid email or password.";
+      console.error("[auth] signIn failed:", result.error);
+      return "Sign-in failed. Clear cookies and try again.";
     }
   } catch (error) {
     if (error instanceof AuthError) {

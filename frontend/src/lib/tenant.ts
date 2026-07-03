@@ -25,8 +25,10 @@ export function firmSlugFromHost(host: string | null | undefined): string | null
     return DEFAULT_DEV_SLUG;
   } else if (hostname.endsWith("." + ROOT_DOMAIN)) {
     sub = hostname.slice(0, -("." + ROOT_DOMAIN).length);
+  } else if (hostname === ROOT_DOMAIN || hostname === "www." + ROOT_DOMAIN) {
+    return null;
   } else {
-    // bare root domain, an IP, or an unknown host — no firm
+    // Plain IP or unknown host — dev-only fallback when DEFAULT_DEV_SLUG is set.
     return DEFAULT_DEV_SLUG;
   }
 
