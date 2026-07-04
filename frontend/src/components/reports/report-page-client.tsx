@@ -44,6 +44,7 @@ export function ReportPageClient({
   fileDate,
   from,
   to,
+  dateType,
   today,
   employees,
   clients,
@@ -53,6 +54,7 @@ export function ReportPageClient({
   fileDate: string;
   from: string;
   to: string;
+  dateType: string;
   today: string;
   employees: IdName[];
   clients: IdName[];
@@ -114,6 +116,7 @@ export function ReportPageClient({
           <ReportFilters
             from={from}
             to={to}
+            dateType={dateType}
             today={today}
             employees={employees}
             clients={clients}

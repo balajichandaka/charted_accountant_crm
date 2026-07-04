@@ -141,7 +141,15 @@ router.get("/report", async (req, res, next) => {
     const to = req.query.to ? endOfDay(new Date(String(req.query.to))) : endOfDay(now);
     const from = req.query.from ? startOfDay(new Date(String(req.query.from))) : startOfDay(subDays(now, 30));
 
-    const where: Prisma.TicketWhereInput = { createdAt: { gte: from, lte: to } };
+    // Apply the range to the chosen date field (Created / Start / Due).
+    const range = { gte: from, lte: to };
+    const dateType = String(req.query.dateType ?? "createdAt");
+    const where: Prisma.TicketWhereInput =
+      dateType === "startDate"
+        ? { startDate: range }
+        : dateType === "dueDate"
+          ? { dueDate: range }
+          : { createdAt: range };
     if (req.query.assigneeId) {
       const vals = String(req.query.assigneeId).split(",").filter(Boolean);
       where.assigneeId = vals.length === 1 ? vals[0] : { in: vals };

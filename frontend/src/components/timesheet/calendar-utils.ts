@@ -42,11 +42,10 @@ export function fmtHours(minutes: number): string {
 }
 
 export function minutesToTimeLabel(minutes: number): string {
+  // 24-hour clock, e.g. 13:00 / 13:30.
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  const period = h >= 12 ? "PM" : "AM";
-  const hour12 = h % 12 || 12;
-  return m ? `${hour12}:${String(m).padStart(2, "0")} ${period}` : `${hour12} ${period}`;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 export function timeInputToMinutes(value: string): number {
@@ -106,11 +105,10 @@ export function timeRangeLabel(startMinutes: number, durationMinutes: number): s
 }
 
 function shortTimeLabel(minutes: number): string {
+  // Compact 24-hour label, e.g. 13 / 13:30.
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  const period = h >= 12 ? "p" : "a";
-  const hour12 = h % 12 || 12;
-  return m ? `${hour12}:${String(m).padStart(2, "0")}${period}` : `${hour12}${period}`;
+  return m ? `${h}:${String(m).padStart(2, "0")}` : `${h}`;
 }
 
 export function shortTimeRangeLabel(startMinutes: number, durationMinutes: number): string {

@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { format, subDays, startOfMonth, startOfYear } from "date-fns";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, CalendarDays } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -11,7 +11,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -23,6 +22,12 @@ type IdName = { id: string; name: string };
 const ALL = "__all__";
 const fmt = (d: Date) => format(d, "yyyy-MM-dd");
 const STATUSES = Object.keys(STATUS_LABEL) as TicketStatus[];
+
+const DATE_TYPES = [
+  { value: "createdAt", label: "Created Date" },
+  { value: "startDate", label: "Start Date" },
+  { value: "dueDate", label: "Due Date" },
+] as const;
 
 function presetRanges(today: Date): Record<string, { from: string; to: string }> {
   const to = fmt(today);
@@ -111,9 +116,96 @@ function MultiSelect({
   );
 }
 
+// ── Date range popover (matches the tickets page date filter) ─────────────────
+function DateFilter({
+  dateType,
+  from,
+  to,
+  today,
+  activePreset,
+  onChangeType,
+  onChangePreset,
+  onChangeFrom,
+  onChangeTo,
+}: {
+  dateType: string;
+  from: string;
+  to: string;
+  today: string;
+  activePreset: string;
+  onChangeType: (v: string) => void;
+  onChangePreset: (v: string) => void;
+  onChangeFrom: (v: string) => void;
+  onChangeTo: (v: string) => void;
+}) {
+  const typeLabel = DATE_TYPES.find((d) => d.value === dateType)?.label ?? "Date";
+  const presetLabel = PRESET_LABELS[activePreset] ?? "Custom range";
+  const triggerLabel = `${typeLabel}: ${presetLabel}`;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="secondary" size="sm" className="h-9 gap-1.5 px-3">
+          <CalendarDays className="size-3.5 opacity-60" />
+          {triggerLabel}
+          <ChevronDown className="size-3.5 opacity-60" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 gap-3">
+        <p className="text-xs font-medium text-muted-foreground">Date type</p>
+        <Select value={dateType} onValueChange={onChangeType}>
+          <SelectTrigger className="h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {DATE_TYPES.map((d) => (
+              <SelectItem key={d.value} value={d.value}>
+                {d.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <p className="text-xs font-medium text-muted-foreground">Period</p>
+        <Select value={activePreset} onValueChange={onChangePreset}>
+          <SelectTrigger className="h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(PRESET_LABELS).map(([k, l]) => (
+              <SelectItem key={k} value={k}>
+                {l}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <p className="text-xs font-medium text-muted-foreground">From</p>
+        <Input
+          type="date"
+          value={from}
+          max={to || today}
+          className="h-8 text-sm"
+          onChange={(e) => e.target.value && onChangeFrom(e.target.value)}
+        />
+
+        <p className="text-xs font-medium text-muted-foreground">To</p>
+        <Input
+          type="date"
+          value={to}
+          max={today}
+          className="h-8 text-sm"
+          onChange={(e) => e.target.value && onChangeTo(e.target.value)}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function ReportFilters({
   from,
   to,
+  dateType,
   today,
   employees,
   clients,
@@ -121,6 +213,7 @@ export function ReportFilters({
 }: {
   from: string;
   to: string;
+  dateType: string;
   today: string;
   employees: IdName[];
   clients: IdName[];
@@ -168,46 +261,22 @@ export function ReportFilters({
   const categoryOptions = categories.map((c) => ({ value: c.id, label: c.name }));
 
   return (
-    <div className="flex flex-wrap items-end gap-2">
-      {/* Date range */}
-      <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">Period</Label>
-        <Select
-          value={activePreset}
-          onValueChange={(v) => (v === "custom" ? pushParams({ from, to }) : pushParams(presets[v]))}
-        >
-          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {Object.entries(PRESET_LABELS).map(([k, l]) => (
-              <SelectItem key={k} value={k}>{l}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">From</Label>
-        <Input
-          type="date"
-          value={from}
-          max={to || today}
-          onChange={(e) => e.target.value && pushParams({ from: e.target.value })}
-          className="w-36"
-        />
-      </div>
-      <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">To</Label>
-        <Input
-          type="date"
-          value={to}
-          max={today}
-          onChange={(e) => e.target.value && pushParams({ to: e.target.value })}
-          className="w-36"
-        />
-      </div>
+    <div className="flex flex-wrap items-center gap-2">
+      {/* Date filter (type + range) */}
+      <DateFilter
+        dateType={dateType}
+        from={from}
+        to={to}
+        today={today}
+        activePreset={activePreset}
+        onChangeType={(v) => pushParams({ dateType: v === "createdAt" ? null : v })}
+        onChangePreset={(v) => (v === "custom" ? pushParams({ from, to }) : pushParams(presets[v]))}
+        onChangeFrom={(v) => pushParams({ from: v })}
+        onChangeTo={(v) => pushParams({ to: v })}
+      />
 
       {/* Multi-select filters */}
-      <div className="flex flex-wrap items-center gap-2 pt-5">
+      <div className="flex flex-wrap items-center gap-2">
         <MultiSelect
           label="Status"
           options={statusOptions}
