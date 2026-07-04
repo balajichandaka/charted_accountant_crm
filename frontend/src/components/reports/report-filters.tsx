@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { format, subDays, startOfMonth, startOfYear } from "date-fns";
-import { ChevronDown, CalendarDays } from "lucide-react";
+import { format, subDays, addDays, startOfMonth, startOfYear } from "date-fns";
+import { ChevronDown, CalendarDays, X } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -29,18 +29,28 @@ const DATE_TYPES = [
   { value: "dueDate", label: "Due Date" },
 ] as const;
 
-function presetRanges(today: Date): Record<string, { from: string; to: string }> {
-  const to = fmt(today);
+// Due Date looks forward (upcoming filings), so it gets extra forward-looking
+// presets on top of the usual backward-looking ones.
+function presetRanges(today: Date, dateType: string): Record<string, { from: string; to: string }> {
+  const todayStr = fmt(today);
+  const past: Record<string, { from: string; to: string }> = {
+    "7": { from: fmt(subDays(today, 7)), to: todayStr },
+    "30": { from: fmt(subDays(today, 30)), to: todayStr },
+    "90": { from: fmt(subDays(today, 90)), to: todayStr },
+    month: { from: fmt(startOfMonth(today)), to: todayStr },
+    year: { from: fmt(startOfYear(today)), to: todayStr },
+  };
+  if (dateType !== "dueDate") return past;
   return {
-    "7": { from: fmt(subDays(today, 7)), to },
-    "30": { from: fmt(subDays(today, 30)), to },
-    "90": { from: fmt(subDays(today, 90)), to },
-    month: { from: fmt(startOfMonth(today)), to },
-    year: { from: fmt(startOfYear(today)), to },
+    nextWeek: { from: todayStr, to: fmt(addDays(today, 7)) },
+    nextMonth: { from: todayStr, to: fmt(addDays(today, 30)) },
+    ...past,
   };
 }
 
 const PRESET_LABELS: Record<string, string> = {
+  nextWeek: "Next week",
+  nextMonth: "Next month",
   "7": "Last 7 days",
   "30": "Last 30 days",
   "90": "Last 90 days",
@@ -123,6 +133,7 @@ function DateFilter({
   to,
   today,
   activePreset,
+  presetKeys,
   onChangeType,
   onChangePreset,
   onChangeFrom,
@@ -133,6 +144,7 @@ function DateFilter({
   to: string;
   today: string;
   activePreset: string;
+  presetKeys: string[];
   onChangeType: (v: string) => void;
   onChangePreset: (v: string) => void;
   onChangeFrom: (v: string) => void;
@@ -172,9 +184,9 @@ function DateFilter({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {Object.entries(PRESET_LABELS).map(([k, l]) => (
+            {[...presetKeys, "custom"].map((k) => (
               <SelectItem key={k} value={k}>
-                {l}
+                {PRESET_LABELS[k] ?? k}
               </SelectItem>
             ))}
           </SelectContent>
@@ -223,7 +235,7 @@ export function ReportFilters({
   const pathname = usePathname();
   const params = useSearchParams();
 
-  const presets = presetRanges(new Date(today));
+  const presets = presetRanges(new Date(today), dateType);
   const activePreset =
     Object.entries(presets).find(([, r]) => r.from === from && r.to === to)?.[0] ?? "custom";
 
@@ -254,6 +266,10 @@ export function ReportFilters({
   const selectedClients = parseMulti("clientId");
   const selectedCategories = parseMulti("categoryId");
 
+  const hasFilters = [
+    "status", "priority", "assigneeId", "clientId", "categoryId", "dateType", "from", "to",
+  ].some((k) => params.get(k));
+
   const statusOptions = STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] }));
   const priorityOptions = PRIORITY_ORDER.map((p) => ({ value: p, label: PRIORITY_LABEL[p] }));
   const assigneeOptions = employees.map((e) => ({ value: e.id, label: e.name }));
@@ -269,6 +285,7 @@ export function ReportFilters({
         to={to}
         today={today}
         activePreset={activePreset}
+        presetKeys={Object.keys(presets)}
         onChangeType={(v) => pushParams({ dateType: v === "createdAt" ? null : v })}
         onChangePreset={(v) => (v === "custom" ? pushParams({ from, to }) : pushParams(presets[v]))}
         onChangeFrom={(v) => pushParams({ from: v })}
@@ -311,6 +328,13 @@ export function ReportFilters({
           selected={selectedCategories}
           onChange={(v) => setMulti("categoryId", v)}
         />
+
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={() => router.push(pathname)}>
+            <X className="size-4" />
+            Clear
+          </Button>
+        )}
       </div>
     </div>
   );
