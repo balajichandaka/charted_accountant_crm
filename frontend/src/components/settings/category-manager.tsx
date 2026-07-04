@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { blockEnterSubmit } from "@/lib/form";
 import { Plus, Pencil, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { categorySchema, type CategoryInput } from "@/schemas/category";
@@ -85,6 +86,7 @@ function CategoryDialog({
         <form
           id="category-form"
           onSubmit={handleSubmit(onSubmit)}
+          onKeyDown={blockEnterSubmit}
           className="space-y-4"
         >
           <div className="space-y-1.5">

@@ -8,6 +8,7 @@ import { updateFirm, sendTestEmail } from "@/actions/firm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { blockEnterSubmit } from "@/lib/form";
 
 export type FirmEmailSettings = {
   smtpHost: string | null;
@@ -86,7 +87,7 @@ export function EmailSettings({ firm }: { firm: FirmEmailSettings }) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} onKeyDown={blockEnterSubmit} className="space-y-4">
       <p className="text-xs text-muted-foreground">
         Send notification emails from your own mailbox. Use a{" "}
         <span className="font-medium">Gmail/Outlook app password</span>, not your login password.

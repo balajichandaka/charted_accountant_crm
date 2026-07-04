@@ -9,6 +9,7 @@ import { createFirm } from "@/actions/platform";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { blockEnterSubmit } from "@/lib/form";
 import {
   Dialog,
   DialogContent,
@@ -118,7 +119,7 @@ export function CreateFirmDialog() {
               </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} onKeyDown={blockEnterSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="firmName">Firm name</Label>
             <Input id="firmName" placeholder="Sharma & Co Chartered Accountants" {...register("firmName", { required: true })} />

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { blockEnterSubmit } from "@/lib/form";
 import { format } from "date-fns";
 import { Plus, Loader2, Trash2, Play, Repeat, Pencil } from "lucide-react";
 import { toast } from "sonner";
@@ -105,6 +106,7 @@ function NewScheduleDialog({
         <form
           id="schedule-form"
           onSubmit={handleSubmit(onSubmit)}
+          onKeyDown={blockEnterSubmit}
           className="grid gap-4 sm:grid-cols-2"
         >
           <div className="space-y-1.5">

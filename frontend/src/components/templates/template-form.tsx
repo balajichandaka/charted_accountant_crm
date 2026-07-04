@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { blockEnterSubmit } from "@/lib/form";
 import {
   Plus,
   Trash2,
@@ -111,6 +112,7 @@ export function TemplateForm({
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
+      onKeyDown={blockEnterSubmit}
       className="grid gap-6 lg:grid-cols-5"
     >
       <Card className="lg:col-span-3">

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2, Loader2, Sparkles } from "lucide-react";
+import { blockEnterSubmit } from "@/lib/form";
 import { toast } from "sonner";
 import {
   createTicketSchema,
@@ -166,6 +167,7 @@ export function TicketCreateForm({
     <>
     <form
       onSubmit={handleSubmit(onSubmit)}
+      onKeyDown={blockEnterSubmit}
       className="grid gap-6 lg:grid-cols-5"
     >
       <div className="space-y-6 lg:col-span-3">

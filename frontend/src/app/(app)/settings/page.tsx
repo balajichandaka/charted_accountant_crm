@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { CategoryManager } from "@/components/settings/category-manager";
 import { FirmBranding, type FirmProfile } from "@/components/settings/firm-branding";
 import { EmailSettings, type FirmEmailSettings } from "@/components/settings/email-settings";
+import { CollapsibleCard } from "@/components/settings/collapsible-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Category = {
@@ -30,23 +31,13 @@ export default async function SettingsPage() {
         description="Manage your firm's branding, categories of work, and account."
       />
 
-      <Card className="shrink-0">
-        <CardHeader>
-          <CardTitle>Firm profile &amp; branding</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <FirmBranding firm={firm} />
-        </CardContent>
-      </Card>
+      <CollapsibleCard title="Firm profile & branding">
+        <FirmBranding firm={firm} />
+      </CollapsibleCard>
 
-      <Card className="shrink-0">
-        <CardHeader>
-          <CardTitle>Email sending (SMTP)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <EmailSettings firm={firm} />
-        </CardContent>
-      </Card>
+      <CollapsibleCard title="Email sending (SMTP)">
+        <EmailSettings firm={firm} />
+      </CollapsibleCard>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">

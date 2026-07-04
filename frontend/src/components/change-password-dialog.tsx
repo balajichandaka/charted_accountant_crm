@@ -8,6 +8,7 @@ import { changePassword } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { blockEnterSubmit } from "@/lib/form";
 import {
   Dialog,
   DialogContent,
@@ -90,7 +91,7 @@ export function ChangePasswordDialog({
           <DialogDescription>Enter your current password and a new one.</DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} onKeyDown={blockEnterSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="currentPassword">Current password</Label>
             <div className="relative">

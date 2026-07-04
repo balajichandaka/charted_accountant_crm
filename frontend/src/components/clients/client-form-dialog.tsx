@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
+import { blockEnterSubmit } from "@/lib/form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -123,6 +124,7 @@ export function ClientFormDialog({
         <form
           id="client-form"
           onSubmit={handleSubmit(onSubmit)}
+          onKeyDown={blockEnterSubmit}
           className="grid gap-4 sm:grid-cols-2"
         >
           <Field label="Client name *" error={errors.name?.message}>

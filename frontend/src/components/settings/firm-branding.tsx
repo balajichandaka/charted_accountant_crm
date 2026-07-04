@@ -7,6 +7,7 @@ import { updateFirm } from "@/actions/firm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { blockEnterSubmit } from "@/lib/form";
 
 export type FirmProfile = {
   name: string;
@@ -68,7 +69,7 @@ export function FirmBranding({ firm }: { firm: FirmProfile }) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} onKeyDown={blockEnterSubmit} className="space-y-4">
       <p className="text-xs text-muted-foreground">
         Public address: <span className="font-mono">{firm.slug}.cafirmops.in</span>
       </p>
