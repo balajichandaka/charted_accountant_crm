@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { computeNextRunAt } from "../lib/recurrence";
+import { computeNextRunAt, computeInitialNextRunAt } from "../lib/recurrence";
 import { authMiddleware, requireCA } from "../middleware/auth";
 
 const router = Router();
@@ -47,7 +47,7 @@ router.post("/", async (req, res, next) => {
     const parsed = scheduleSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.issues[0]?.message }); return; }
     const d = parsed.data!;
-    const { nextRunAt } = await import("../lib/recurrence").then(m => ({ nextRunAt: m.computeNextRunAt(d.frequency, d.dayOfMonth) }));
+    const nextRunAt = computeInitialNextRunAt(d.frequency, d.dayOfMonth);
     const schedule = await prisma.recurringSchedule.create({ data: { firmId: req.user!.firm, clientId: d.clientId, templateId: d.templateId, assigneeId: d.assigneeId || null, frequency: d.frequency, dayOfMonth: d.dayOfMonth ?? null, dueOffsetDays: d.dueOffsetDays, nextRunAt } });
     res.json({ ok: true, data: { id: schedule.id } });
   } catch (err) { next(err); }

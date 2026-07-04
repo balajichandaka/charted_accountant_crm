@@ -1,5 +1,6 @@
-import { addWeeks, addMonths, setDate, getISOWeek, getISOWeekYear, getDaysInMonth } from "date-fns";
+import { addWeeks, addMonths, setDate, startOfDay, getISOWeek, getISOWeekYear, getDaysInMonth } from "date-fns";
 import type { Frequency } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { requireFirmId } from "./tenant-context";
 import { notifyTicketParticipants } from "./notifications";
@@ -30,6 +31,20 @@ export function computeNextRunAt(freq: Frequency, dayOfMonth?: number | null, fr
   }
   if (dayOfMonth && dayOfMonth >= 1) next = setDate(next, Math.min(dayOfMonth, getDaysInMonth(next)));
   return next;
+}
+
+/** First run time when creating a schedule — may be later today/this month, not always +1 full period. */
+export function computeInitialNextRunAt(freq: Frequency, dayOfMonth?: number | null, from: Date = new Date()): Date {
+  if (freq === "WEEKLY" || !dayOfMonth || dayOfMonth < 1) {
+    return computeNextRunAt(freq, dayOfMonth, from);
+  }
+  const thisPeriod = startOfDay(setDate(from, Math.min(dayOfMonth, getDaysInMonth(from))));
+  if (thisPeriod > from) return thisPeriod;
+  return computeNextRunAt(freq, dayOfMonth, from);
+}
+
+function isDuplicatePeriodError(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
 }
 
 export async function generateRecurringTickets() {
@@ -74,11 +89,22 @@ export async function generateRecurringTickets() {
           logger.error({ err, ticketId: ticket.id }, "recurring ticket notification failed")
         );
       } catch (e: unknown) {
-        if ((e as { code?: string }).code === "P2002") { skipped++; continue; }
-        throw e;
+        if (isDuplicatePeriodError(e)) {
+          skipped++;
+          logger.info(
+            { scheduleId: schedule.id, periodLabel: label },
+            "recurring ticket already exists for period — advancing schedule"
+          );
+        } else {
+          throw e;
+        }
       }
+      // Always advance after a due run, even when this period's ticket already exists.
       const nextRunAt = computeNextRunAt(schedule.frequency, schedule.dayOfMonth, now);
-      await prisma.recurringSchedule.update({ where: { id: schedule.id }, data: { lastGeneratedFor: now, nextRunAt } });
+      await prisma.recurringSchedule.update({
+        where: { id: schedule.id },
+        data: { lastGeneratedFor: now, nextRunAt },
+      });
     } catch (err) {
       errors.push(`schedule ${schedule.id}: ${err instanceof Error ? err.message : String(err)}`);
     }

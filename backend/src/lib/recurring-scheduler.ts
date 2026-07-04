@@ -33,7 +33,7 @@ export function startRecurringScheduler(): void {
     running = true;
     try {
       const result = await runRecurringSweepForAllFirms();
-      if (result.generated > 0 || result.errors.length > 0) {
+      if (result.generated > 0 || result.skipped > 0 || result.errors.length > 0) {
         logger.info(result, "recurring sweep completed");
       }
     } catch (err) {

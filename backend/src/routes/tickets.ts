@@ -7,7 +7,7 @@ import {
 } from "../lib/notifications";
 import { authMiddleware, requireCA } from "../middleware/auth";
 import { upload } from "../lib/upload";
-import { computeNextRunAt } from "../lib/recurrence";
+import { computeNextRunAt, computeInitialNextRunAt } from "../lib/recurrence";
 import { logger } from "../lib/logger";
 import { Role, type TicketStatus, type Frequency } from "@prisma/client";
 
@@ -207,7 +207,7 @@ router.post("/", async (req, res, next) => {
             frequency: d.frequency,
             dayOfMonth,
             dueOffsetDays,
-            nextRunAt: computeNextRunAt(d.frequency, dayOfMonth),
+            nextRunAt: computeInitialNextRunAt(d.frequency, dayOfMonth),
           },
         });
         scheduleId = created.id;
