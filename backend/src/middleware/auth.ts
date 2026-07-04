@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { basePrisma } from "../lib/prisma";
 import { enterFirmContext } from "../lib/tenant-context";
 import { verifyToken, type JwtPayload } from "../lib/jwt";
+import { logger } from "../lib/logger";
 
 declare global {
   namespace Express {
@@ -21,7 +22,8 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
   let payload: JwtPayload;
   try {
     payload = verifyToken(header.slice(7));
-  } catch {
+  } catch (err) {
+    logger.debug({ err }, "token verification failed");
     res.status(401).json({ ok: false, error: "Invalid or expired token" });
     return;
   }
@@ -47,6 +49,16 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
     !user.firm?.isActive ||
     user.firmId !== payload.firm
   ) {
+    logger.debug(
+      {
+        userId: payload.sub,
+        found: !!user,
+        userActive: user?.isActive,
+        firmActive: user?.firm?.isActive,
+        firmMatch: user?.firmId === payload.firm,
+      },
+      "auth rejected: session/firm mismatch"
+    );
     res.status(401).json({
       ok: false,
       error: "Session invalid for this environment. Please log out and sign in again.",

@@ -2,10 +2,21 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { authConfig } from "@/lib/auth.config";
 import { loginWithBackend } from "@/lib/backend-auth";
+import { logger } from "@/lib/logger";
 import type { Role } from "@/types/domain";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  // Surface Auth.js internal errors in the server logs (missing AUTH_SECRET,
+  // JWT/session callback failures, etc.) so login 500s are diagnosable.
+  logger: {
+    error(error) {
+      logger.error("next-auth error", { error });
+    },
+    warn(code) {
+      logger.warn("next-auth warning", { code });
+    },
+  },
   providers: [
     Credentials({
       credentials: {

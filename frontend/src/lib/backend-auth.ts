@@ -1,4 +1,5 @@
 import type { Role } from "@/types/domain";
+import { logger } from "@/lib/logger";
 
 export type BackendLoginUser = {
   id: string;
@@ -38,6 +39,11 @@ export async function loginWithBackend(
       try {
         json = JSON.parse(text);
       } catch {
+        logger.error("backend login returned non-JSON", {
+          backendUrl,
+          status: res.status,
+          body: text.slice(0, 200),
+        });
         if (attempt === 0) continue;
         return null;
       }
@@ -52,7 +58,12 @@ export async function loginWithBackend(
       }
 
       return null;
-    } catch {
+    } catch (err) {
+      logger.error("failed to reach backend for login", {
+        backendUrl,
+        attempt: attempt + 1,
+        error: err,
+      });
       if (attempt === 0) continue;
       return null;
     }

@@ -1,4 +1,5 @@
 import nodemailer, { type Transporter } from "nodemailer";
+import { logger } from "./logger";
 
 /** Per-firm SMTP settings, resolved at send time. */
 export type SmtpConfig = {
@@ -80,7 +81,7 @@ export type EmailMessage = {
 export async function sendEmail(msg: EmailMessage, config?: SmtpConfig): Promise<boolean> {
   const resolved = resolve(config);
   if (!resolved) {
-    console.warn("[email] No SMTP configured (firm or env); skipping send to", msg.to);
+    logger.warn({ to: msg.to }, "No SMTP configured (firm or env); skipping send");
     return false;
   }
   await resolved.transport.sendMail({

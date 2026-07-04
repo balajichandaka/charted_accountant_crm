@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { logger } from "@/lib/logger";
 
 export const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:4000";
 
@@ -29,9 +30,13 @@ export async function apiGet<T>(path: string, token?: string): Promise<T> {
   try {
     json = await res.json();
   } catch {
+    logger.error("apiGet non-JSON response", { path, status: res.status });
     throw new Error(`API error (${res.status}): non-JSON response from backend`);
   }
-  if (!json.ok) throw new Error(json.error);
+  if (!json.ok) {
+    logger.error("apiGet failed", { path, status: res.status, error: json.error });
+    throw new Error(json.error);
+  }
   return json.data;
 }
 
@@ -53,6 +58,7 @@ export async function apiMutate<T = void>(
     const json: ApiResponse<T> = await res.json();
     return json;
   } catch (err) {
+    logger.error("api request failed", { path, error: err });
     return { ok: false, error: err instanceof Error ? err.message : "Network error" };
   }
 }
@@ -72,6 +78,7 @@ export async function apiUpload<T = unknown>(
     const json: ApiResponse<T> = await res.json();
     return json;
   } catch (err) {
+    logger.error("api request failed", { path, error: err });
     return { ok: false, error: err instanceof Error ? err.message : "Network error" };
   }
 }

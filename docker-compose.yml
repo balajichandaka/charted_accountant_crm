@@ -57,6 +57,7 @@ services:
       ADMIN_EMAIL: "${ADMIN_EMAIL:-}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
       NODE_ENV: production
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
     ports:
       - "4000:4000"
     volumes:
@@ -87,6 +88,7 @@ services:
       NEXT_PUBLIC_ROOT_DOMAIN: "${NEXT_PUBLIC_ROOT_DOMAIN:-cafirmops.in}"
       NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: "${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-iSXPhZRT+rGUrCkGLCzc8pct7qUYmqP0HCMGZN7sYB0=}"
       NODE_ENV: production
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
     ports:
       - "${APP_PORT:-3000}:3000"
 

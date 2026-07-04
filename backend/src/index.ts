@@ -1,5 +1,8 @@
 import express from "express";
 import cors from "cors";
+import { randomUUID } from "crypto";
+import { pinoHttp } from "pino-http";
+import { logger } from "./lib/logger";
 import authRouter from "./routes/auth";
 import clientsRouter from "./routes/clients";
 import categoriesRouter from "./routes/categories";
@@ -25,6 +28,25 @@ const corsOrigins = (process.env.FRONTEND_URL ?? "http://localhost:3000")
 app.use(cors({ origin: corsOrigins, credentials: true }));
 app.use(express.json());
 
+// Structured request logging with a per-request correlation id (also returned as
+// the x-request-id header). Attaches a child logger at req.log for handlers.
+app.use(
+  pinoHttp({
+    logger,
+    genReqId: (req, res) => {
+      const existing = req.headers["x-request-id"];
+      const id = (Array.isArray(existing) ? existing[0] : existing) || randomUUID();
+      res.setHeader("x-request-id", id);
+      return id;
+    },
+    customLogLevel: (_req, res, err) => {
+      if (err || res.statusCode >= 500) return "error";
+      if (res.statusCode >= 400) return "warn";
+      return "info";
+    },
+  })
+);
+
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/api/auth",       authRouter);
@@ -43,4 +65,13 @@ app.use("/api/firm",       firmRouter);
 
 app.use(errorHandler);
 
-app.listen(PORT, () => console.log(`[backend] Running on http://localhost:${PORT}`));
+app.listen(PORT, () => logger.info({ port: PORT }, "backend started"));
+
+// Last-resort handlers so crashes are logged instead of vanishing.
+process.on("unhandledRejection", (reason) => {
+  logger.error({ err: reason }, "unhandledRejection");
+});
+process.on("uncaughtException", (err) => {
+  logger.fatal({ err }, "uncaughtException");
+  process.exit(1);
+});

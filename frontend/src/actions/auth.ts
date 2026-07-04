@@ -7,6 +7,7 @@ import { loginWithBackend } from "@/lib/backend-auth";
 import { firmSlugFromHost } from "@/lib/tenant";
 import { getToken } from "@/lib/session";
 import { apiMutate } from "@/lib/api";
+import { logger } from "@/lib/logger";
 import type { ActionResult } from "@/lib/action-result";
 
 export async function authenticate(
@@ -49,13 +50,13 @@ export async function authenticate(
       redirect: false,
     });
     if (result?.error) {
-      console.error("[auth] signIn failed:", result.error, { host, firmSlug });
+      logger.error("signIn returned error", { host, firmSlug, error: result.error });
       return "Sign-in failed. Clear cookies and try again.";
     }
 
     return undefined;
   } catch (error) {
-    console.error("[auth] authenticate error:", error);
+    logger.error("authenticate failed", { error });
     if (error instanceof AuthError) {
       return "Invalid email or password.";
     }

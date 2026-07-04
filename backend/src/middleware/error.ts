@@ -1,9 +1,10 @@
 import type { Request, Response, NextFunction } from "express";
 import { Prisma } from "@prisma/client";
+import { logger } from "../lib/logger";
 
 export function errorHandler(
   err: unknown,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ) {
@@ -25,6 +26,7 @@ export function errorHandler(
   }
 
   const message = err instanceof Error ? err.message : "Internal server error";
-  console.error("[error]", err);
+  // Log the full error (with stack) against the request's correlation id.
+  (req.log ?? logger).error({ err }, "request failed");
   res.status(500).json({ ok: false, error: message });
 }
