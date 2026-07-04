@@ -3,6 +3,7 @@ import type { Frequency } from "@prisma/client";
 import { prisma } from "./prisma";
 import { requireFirmId } from "./tenant-context";
 import { notifyTicketAssigned } from "./notifications";
+import { logger } from "./logger";
 
 export function periodLabel(freq: Frequency, date: Date): string {
   const y = date.getFullYear();
@@ -68,7 +69,10 @@ export async function generateRecurringTickets() {
             activities: { create: { firmId, type: "RECURRING_GENERATED" } },
           },
         });
-        if (schedule.assignee) notifyTicketAssigned(ticket, schedule.assignee).catch(console.error);
+        if (schedule.assignee)
+          notifyTicketAssigned(ticket, schedule.assignee).catch((err) =>
+            logger.error({ err, ticketId: ticket.id }, "recurring assignee notification failed")
+          );
         generated++;
       } catch (e: unknown) {
         if ((e as { code?: string }).code === "P2002") { skipped++; continue; }

@@ -8,7 +8,12 @@ import {
 import { authMiddleware, requireCA } from "../middleware/auth";
 import { upload } from "../lib/upload";
 import { computeNextRunAt } from "../lib/recurrence";
+import { logger } from "../lib/logger";
 import { Role, type TicketStatus, type Frequency } from "@prisma/client";
+
+/** Fire-and-forget notification error handler (never blocks the response). */
+const notifyFailed = (event: string) => (err: unknown) =>
+  logger.error({ err, event }, "ticket notification failed");
 
 // Frequencies that can drive a recurring schedule (ONE_TIME / CUSTOM cannot).
 const SCHEDULABLE_FREQUENCIES: Frequency[] = ["WEEKLY", "MONTHLY", "QUARTERLY", "HALF_YEARLY", "YEARLY"];
@@ -163,7 +168,7 @@ router.post("/", async (req, res, next) => {
       },
     });
     // Notify assignee + manager + client that the ticket was created.
-    notifyTicketParticipants(ticket.id, "CREATED").catch(console.error);
+    notifyTicketParticipants(ticket.id, "CREATED").catch(notifyFailed("CREATED"));
 
     // Optionally set up a recurring schedule from this ticket (opt-in).
     // Needs a template and a real cadence; reuses an existing matching schedule.
@@ -228,7 +233,7 @@ router.put("/:id", async (req, res, next) => {
     if (d.assigneeId && d.assigneeId !== existing.assigneeId) {
       const assignee = await prisma.user.findUnique({ where: { id: d.assigneeId } });
       const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id } });
-      if (assignee && ticket) notifyTicketAssigned(ticket, assignee).catch(console.error);
+      if (assignee && ticket) notifyTicketAssigned(ticket, assignee).catch(notifyFailed("ASSIGNED"));
     }
     await prisma.activityLog.create({ data: { firmId: req.user!.firm, type: "UPDATED", actorId: req.user!.sub, ticketId: req.params.id } });
     res.json({ ok: true });
@@ -242,7 +247,7 @@ router.patch("/:id/status", async (req, res, next) => {
     await prisma.ticket.update({ where: { id: req.params.id }, data: { status, completedAt: status === "DONE" ? new Date() : null } });
     await prisma.activityLog.create({ data: { firmId: req.user!.firm, type: "STATUS_CHANGED", actorId: req.user!.sub, ticketId: req.params.id, metadata: { status } } });
     // On completion, notify assignee + manager + client.
-    if (status === "DONE") notifyTicketParticipants(req.params.id, "COMPLETED").catch(console.error);
+    if (status === "DONE") notifyTicketParticipants(req.params.id, "COMPLETED").catch(notifyFailed("COMPLETED"));
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -254,7 +259,7 @@ router.patch("/:id/assign", async (req, res, next) => {
     const ticket = await prisma.ticket.update({ where: { id: req.params.id }, data: { assigneeId: assigneeId || null } });
     if (assigneeId) {
       const assignee = await prisma.user.findUnique({ where: { id: assigneeId } });
-      if (assignee) notifyTicketAssigned(ticket, assignee).catch(console.error);
+      if (assignee) notifyTicketAssigned(ticket, assignee).catch(notifyFailed("ASSIGNED"));
     }
     await prisma.activityLog.create({ data: { firmId: req.user!.firm, type: "ASSIGNED", actorId: req.user!.sub, ticketId: req.params.id } });
     res.json({ ok: true });

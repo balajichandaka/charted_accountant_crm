@@ -1,5 +1,6 @@
 import { sendEmail, type SmtpConfig } from "./email";
 import { decryptSecret } from "./crypto";
+import { logger } from "./logger";
 import { prisma } from "./prisma";
 import { requireFirmId } from "./tenant-context";
 import type { Ticket, User } from "@prisma/client";
@@ -64,7 +65,7 @@ export function buildSmtpConfig(
   try {
     pass = decryptSecret(firm.smtpPassEnc);
   } catch (err) {
-    console.error("[email] Failed to decrypt firm SMTP password; using env fallback.", err);
+    logger.error({ err }, "Failed to decrypt firm SMTP password; using env fallback");
     return undefined;
   }
   const port = firm.smtpPort ?? 587;

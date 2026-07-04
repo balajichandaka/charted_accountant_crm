@@ -7,6 +7,7 @@ import { loginWithBackend } from "@/lib/backend-auth";
 import { firmSlugFromHost } from "@/lib/tenant";
 import { getToken } from "@/lib/session";
 import { apiMutate } from "@/lib/api";
+import { logger } from "@/lib/logger";
 import type { ActionResult } from "@/lib/action-result";
 
 export async function authenticate(
@@ -46,11 +47,28 @@ export async function authenticate(
       redirectTo: "/dashboard",
     });
   } catch (error) {
+    // A successful signIn throws a Next.js redirect — let it propagate untouched.
+    if (isNextRedirect(error)) throw error;
     if (error instanceof AuthError) {
+      logger.warn("login signIn rejected", { firmSlug, type: error.type });
       return "Invalid email or password.";
     }
+    // Anything else is a real server-side failure (missing AUTH_SECRET, config
+    // error, etc.). Log it so the cause is visible, then surface a 500.
+    logger.error("login signIn failed", { firmSlug, error });
     throw error;
   }
+}
+
+/** True for the redirect "error" Next.js throws on a successful server-action redirect. */
+function isNextRedirect(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "digest" in error &&
+    typeof (error as { digest?: unknown }).digest === "string" &&
+    (error as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+  );
 }
 
 export async function logout() {
