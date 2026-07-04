@@ -81,10 +81,41 @@ export function buildSmtpConfig(
   };
 }
 
+/** Minimal HTML escaping for values interpolated into email bodies. */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Build a firm-scoped app URL on its own subdomain, e.g.
+ * APP_URL=https://cafirmops.in + slug "firm1" → https://firm1.cafirmops.in.
+ * Falls back to the bare APP_URL if the slug is missing or the URL is malformed.
+ */
+function firmAppUrl(slug: string | null | undefined): string {
+  const base = process.env.APP_URL ?? "http://localhost:3000";
+  if (!slug) return base;
+  try {
+    const u = new URL(base);
+    u.hostname = `${slug}.${u.hostname}`;
+    return u.origin;
+  } catch {
+    return base;
+  }
+}
+
 /** Resolve the current firm's outbound contact/sender + SMTP config, falling back to env. */
-async function loadFirmContext(): Promise<{ comms: FirmComms; smtp?: SmtpConfig }> {
+async function loadFirmContext(): Promise<{
+  comms: FirmComms;
+  smtp?: SmtpConfig;
+  slug: string | null;
+}> {
   const firm = await prisma.firm.findFirst({
     select: {
+      slug: true,
       brandName: true,
       emailFromName: true,
       contactEmail: true,
@@ -109,20 +140,25 @@ async function loadFirmContext(): Promise<{ comms: FirmComms; smtp?: SmtpConfig 
     escalationPhone: firm?.escalationPhone || ENV_CONTACT.escalationPhone,
   };
   const smtp = firm ? buildSmtpConfig(firm, comms.senderName) : undefined;
-  return { comms, smtp };
+  return { comms, smtp, slug: firm?.slug ?? null };
 }
 
 function subjectFor(event: TicketEvent, ticket: TicketNotify, recipient: Recipient, sender: string): string {
+  // Consistent branded prefix for every outbound email, e.g.
+  // "Alert from CA Arun Pathivada" (sender = the firm's configured CA admin /
+  // sender name). Clients get just the prefix; staff (assignee/manager) get the
+  // ticket details appended.
+  const prefix = `Alert from CA ${sender}`;
   if ((event === "CREATED" || event === "COMPLETED") && recipient.kind === "client") {
-    return `${sender} :`;
+    return prefix;
   }
   if (event === "ASSIGNED") {
-    return `${sender} : Ticket #${ticket.ticketNumber} assigned to you — ${ticket.title}`;
+    return `${prefix} : Ticket #${ticket.ticketNumber} assigned to you — ${ticket.title}`;
   }
   if (event === "CREATED") {
-    return `${sender} : New ticket #${ticket.ticketNumber} — ${ticket.title}`;
+    return `${prefix} : New ticket #${ticket.ticketNumber} — ${ticket.title}`;
   }
-  return `${sender} : Ticket #${ticket.ticketNumber} completed — ${ticket.title}`;
+  return `${prefix} : Ticket #${ticket.ticketNumber} completed — ${ticket.title}`;
 }
 
 function clientCreatedBody(recipient: Recipient, ticket: TicketNotify, c: FirmComms): string {
@@ -216,11 +252,29 @@ function bodyFor(
       : event === "COMPLETED"
         ? "A ticket has been completed"
         : "A ticket has been assigned to you";
-  return {
-    html: `<p>Hi ${recipient.name},</p><p>${heading}:</p>
-<p><strong><a href="${ticketUrl}">#${ticket.ticketNumber} — ${ticket.title}</a></strong></p>
-<p><a href="${ticketUrl}">View ticket →</a></p>`,
-  };
+  const name = escapeHtml(recipient.name);
+  const title = escapeHtml(ticket.title);
+  const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1f2937;line-height:1.5;max-width:520px;">
+  <p style="margin:0 0 12px;">Hi ${name},</p>
+  <p style="margin:0 0 16px;">${heading}:</p>
+  <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border:1px solid #e5e7eb;border-radius:10px;background:#f9fafb;margin:0 0 20px;">
+    <tr><td style="padding:16px 20px;">
+      <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;">Ticket #${ticket.ticketNumber}</div>
+      <div style="font-size:16px;font-weight:600;color:#111827;margin-top:4px;">${title}</div>
+    </td></tr>
+  </table>
+  <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background:#2563eb;">
+    <a href="${ticketUrl}" style="display:inline-block;padding:11px 22px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">View ticket &rarr;</a>
+  </td></tr></table>
+</div>`;
+  const text = `Hi ${recipient.name},
+
+${heading}:
+
+Ticket #${ticket.ticketNumber} — ${ticket.title}
+
+View ticket: ${ticketUrl}`;
+  return { html, text };
 }
 
 /** One email per address; on CREATED, prefer the client-facing template. */
@@ -250,9 +304,10 @@ export async function notifyTicketEvent(
   recipients: Recipient[],
   event: TicketEvent
 ) {
-  const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-  const ticketUrl = `${appUrl}/tickets/${ticket.id}`;
-  const { comms, smtp } = await loadFirmContext();
+  const { comms, smtp, slug } = await loadFirmContext();
+  // Multi-tenant: link to the firm's own subdomain (e.g. https://firm1.cafirmops.in),
+  // not the bare root domain.
+  const ticketUrl = `${firmAppUrl(slug)}/tickets/${ticket.id}`;
 
   for (const r of dedupeRecipients(recipients, event)) {
     if (!r.email) continue;

@@ -51,6 +51,7 @@ export type CreateTicketFormValues = z.input<typeof createTicketSchema>;
 
 export const updateTicketSchema = z.object({
   title: z.string().trim().min(1, "Title is required"),
+  clientId: z.string().min(1, "Select a client"),
   categoryId: optionalId,
   assigneeId: optionalId,
   managerId: optionalId,

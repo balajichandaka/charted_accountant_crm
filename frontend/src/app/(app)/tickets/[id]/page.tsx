@@ -150,6 +150,8 @@ export default async function TicketDetailPage({
   }
 
   const { ticket, employees, managers, categories } = data;
+  // Clients list for the edit dialog (lets the CA reassign the ticket's client).
+  const clients = await apiGet<Array<{ id: string; name: string }>>("/api/clients", token);
 
   // Build comment tree (one level of replies)
   const byId = new Map<string, CommentNode>();
@@ -185,12 +187,14 @@ export default async function TicketDetailPage({
       >
         <StatusSelect ticketId={ticket.id} status={ticket.status as Parameters<typeof StatusSelect>[0]["status"]} />
         <TicketEditDialog
+          clients={clients}
           categories={categories}
           employees={employees}
           managers={managers}
           ticket={{
             id: ticket.id,
             title: ticket.title,
+            clientId: ticket.clientId,
             categoryId: ticket.categoryId ?? "",
             assigneeId: ticket.assigneeId ?? "",
             managerId: ticket.managerId ?? "",

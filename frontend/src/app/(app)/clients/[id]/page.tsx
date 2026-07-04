@@ -48,9 +48,9 @@ type Client = {
 
 function Detail({ label, value }: { label: string; value?: string | null }) {
   return (
-    <div className="space-y-0.5">
+    <div className="min-w-0 space-y-0.5">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-sm">{value || "—"}</dd>
+      <dd className="text-sm break-words">{value || "—"}</dd>
     </div>
   );
 }

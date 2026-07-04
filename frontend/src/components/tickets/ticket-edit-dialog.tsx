@@ -49,6 +49,7 @@ const INVOICE_NOTES = Object.keys(INVOICE_NOTE_LABEL) as InvoiceNote[];
 
 export function TicketEditDialog({
   ticket,
+  clients,
   categories,
   employees,
   managers,
@@ -56,6 +57,7 @@ export function TicketEditDialog({
   ticket: {
     id: string;
     title: string;
+    clientId: string;
     categoryId: string;
     assigneeId: string;
     managerId: string;
@@ -69,6 +71,7 @@ export function TicketEditDialog({
     startDate: string;
     dueDate: string;
   };
+  clients: { id: string; name: string }[];
   categories: { id: string; name: string }[];
   employees: { id: string; name: string }[];
   managers: { id: string; name: string }[];
@@ -122,6 +125,28 @@ export function TicketEditDialog({
             <Input {...register("title")} />
             {errors.title ? (
               <p className="text-xs text-destructive">{errors.title.message}</p>
+            ) : null}
+          </div>
+
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>Client *</Label>
+            <Select
+              value={watch("clientId") || undefined}
+              onValueChange={(v) => setValue("clientId", v, { shouldValidate: true })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select client" />
+              </SelectTrigger>
+              <SelectContent>
+                {clients.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.clientId ? (
+              <p className="text-xs text-destructive">{errors.clientId.message}</p>
             ) : null}
           </div>
 
