@@ -1,7 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
+import { startOfDay } from "date-fns";
 import { prisma } from "../lib/prisma";
 import { computeNextRunAt, computeInitialNextRunAt } from "../lib/recurrence";
+import {
+  snapshotFromTemplate,
+} from "../lib/recurring-blueprint";
 import { authMiddleware, requireCA } from "../middleware/auth";
 
 const router = Router();
@@ -21,6 +25,7 @@ const scheduleSchema = z.object({
   frequency: z.enum(["WEEKLY","MONTHLY","QUARTERLY","HALF_YEARLY","YEARLY","CUSTOM"]),
   dayOfMonth: z.coerce.number().int().min(1).max(31).optional(),
   dueOffsetDays: z.coerce.number().int().min(0).default(7),
+  firstRunDate: z.string().min(1).optional(),
 });
 
 const editScheduleSchema = z.object({
@@ -47,8 +52,42 @@ router.post("/", async (req, res, next) => {
     const parsed = scheduleSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.issues[0]?.message }); return; }
     const d = parsed.data!;
-    const nextRunAt = computeInitialNextRunAt(d.frequency, d.dayOfMonth);
-    const schedule = await prisma.recurringSchedule.create({ data: { firmId: req.user!.firm, clientId: d.clientId, templateId: d.templateId, assigneeId: d.assigneeId || null, frequency: d.frequency, dayOfMonth: d.dayOfMonth ?? null, dueOffsetDays: d.dueOffsetDays, nextRunAt } });
+    const template = await prisma.workTemplate.findUnique({
+      where: { id: d.templateId },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        categoryId: true,
+        defaultPriority: true,
+        defaultBillable: true,
+        documentsRequired: true,
+      },
+    });
+    if (!template) {
+      res.status(400).json({ ok: false, error: "Template not found." });
+      return;
+    }
+    const dayOfMonth =
+      d.dayOfMonth ??
+      (d.firstRunDate && d.frequency !== "WEEKLY" ? new Date(d.firstRunDate).getDate() : null);
+    const nextRunAt = d.firstRunDate
+      ? startOfDay(new Date(d.firstRunDate))
+      : computeInitialNextRunAt(d.frequency, dayOfMonth);
+    const snapshot = snapshotFromTemplate(template, req.user!.sub);
+    const schedule = await prisma.recurringSchedule.create({
+      data: {
+        firmId: req.user!.firm,
+        clientId: d.clientId,
+        templateId: d.templateId,
+        assigneeId: d.assigneeId || null,
+        frequency: d.frequency,
+        dayOfMonth: dayOfMonth ?? null,
+        dueOffsetDays: d.dueOffsetDays,
+        nextRunAt,
+        ...snapshot,
+      },
+    });
     res.json({ ok: true, data: { id: schedule.id } });
   } catch (err) { next(err); }
 });

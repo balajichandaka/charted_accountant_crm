@@ -456,6 +456,18 @@ model RecurringSchedule {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
+  // Snapshot of ticket fields to copy on each auto-generation (from the seed ticket or template).
+  title               String?
+  description         String?
+  categoryId          String?
+  managerId           String?
+  reporterId          String?
+  priority            Priority?
+  billable            BillableType?
+  invoiceStatus       InvoiceStatusNote?
+  targetMinutes       Int?
+  documentsRequired   String?
+
   firmId String
   firm   Firm   @relation(fields: [firmId], references: [id])
 

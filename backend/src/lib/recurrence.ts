@@ -5,6 +5,10 @@ import { prisma } from "./prisma";
 import { requireFirmId } from "./tenant-context";
 import { notifyTicketParticipants } from "./notifications";
 import { logger } from "./logger";
+import {
+  buildRecurringTicketCreateInput,
+  findSchedulePrototypeTicket,
+} from "./recurring-blueprint";
 
 export function periodLabel(freq: Frequency, date: Date): string {
   const y = date.getFullYear();
@@ -60,29 +64,21 @@ export async function generateRecurringTickets() {
   for (const schedule of schedules) {
     try {
       const label = periodLabel(schedule.frequency, now);
-      const dueDate = new Date(now.getTime() + schedule.dueOffsetDays * 86400000);
       try {
         const firmId = requireFirmId();
-        const caUser = await prisma.user.findFirst({ where: { role: "CA" } });
+        const caUser = await prisma.user.findFirst({ where: { role: "CA" }, select: { id: true } });
+        if (!caUser) throw new Error("No CA user found for firm");
+
+        const prototype = await findSchedulePrototypeTicket(schedule.id);
         const ticket = await prisma.ticket.create({
-          data: {
+          data: buildRecurringTicketCreateInput({
+            schedule,
+            prototype,
             firmId,
-            title: schedule.template.name,
-            clientId: schedule.clientId,
-            categoryId: schedule.template.categoryId,
-            templateId: schedule.templateId,
-            assigneeId: schedule.assigneeId,
-            reporterId: schedule.assigneeId ?? caUser!.id,
-            priority: schedule.template.defaultPriority,
-            frequency: schedule.frequency,
-            billable: schedule.template.defaultBillable,
-            documentsRequired: schedule.template.documentsRequired,
-            recurringScheduleId: schedule.id,
+            caUserId: caUser.id,
             periodLabel: label,
-            dueDate,
-            subtasks: { create: schedule.template.subtasks.map((s) => ({ firmId, title: s.title, order: s.order })) },
-            activities: { create: { firmId, type: "RECURRING_GENERATED" } },
-          },
+            runAt: now,
+          }),
         });
         generated++;
         notifyTicketParticipants(ticket.id, "CREATED").catch((err) =>
@@ -99,7 +95,6 @@ export async function generateRecurringTickets() {
           throw e;
         }
       }
-      // Always advance after a due run, even when this period's ticket already exists.
       const nextRunAt = computeNextRunAt(schedule.frequency, schedule.dayOfMonth, now);
       await prisma.recurringSchedule.update({
         where: { id: schedule.id },

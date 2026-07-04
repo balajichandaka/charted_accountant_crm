@@ -8,6 +8,7 @@ import {
 import { authMiddleware, requireCA } from "../middleware/auth";
 import { upload } from "../lib/upload";
 import { computeNextRunAt, computeInitialNextRunAt } from "../lib/recurrence";
+import { snapshotFromTicketInput } from "../lib/recurring-blueprint";
 import { logger } from "../lib/logger";
 import { Role, type TicketStatus, type Frequency } from "@prisma/client";
 
@@ -189,9 +190,25 @@ router.post("/", async (req, res, next) => {
         where: { clientId: d.clientId, templateId: d.templateId, frequency: d.frequency },
       });
       let scheduleId: string;
+      const snapshot = snapshotFromTicketInput({
+        title: d.title,
+        description: d.description || null,
+        categoryId: d.categoryId || null,
+        managerId: d.managerId || null,
+        reporterId: req.user!.sub,
+        priority: d.priority,
+        billable: d.billable,
+        invoiceStatus: d.invoiceStatus,
+        targetMinutes: d.targetMinutes ?? null,
+        documentsRequired: d.documentsRequired || null,
+      });
       if (existing) {
         scheduleId = existing.id;
         recurringSchedule = "existing";
+        await prisma.recurringSchedule.update({
+          where: { id: existing.id },
+          data: { ...snapshot, assigneeId: d.assigneeId || null },
+        });
       } else {
         const start = d.startDate ? new Date(d.startDate) : null;
         const due = d.dueDate ? new Date(d.dueDate) : null;
@@ -208,6 +225,7 @@ router.post("/", async (req, res, next) => {
             dayOfMonth,
             dueOffsetDays,
             nextRunAt: computeInitialNextRunAt(d.frequency, dayOfMonth),
+            ...snapshot,
           },
         });
         scheduleId = created.id;
