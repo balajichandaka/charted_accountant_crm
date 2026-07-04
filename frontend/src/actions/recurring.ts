@@ -66,23 +66,3 @@ export async function deleteSchedule(id: string): Promise<ActionResult> {
     ? { ok: true }
     : { ok: false, error: result.error };
 }
-
-export async function runRecurringNow(): Promise<
-  ActionResult<{ generated: number; skipped: number }>
-> {
-  await requireCA();
-  const token = await getToken();
-  const result = await apiMutate<{ generated: number; skipped: number }>(
-    "POST",
-    "/api/recurring/run",
-    {},
-    token
-  );
-  if (result.ok) {
-    revalidatePath("/recurring");
-    revalidatePath("/tickets");
-  }
-  return result.ok
-    ? { ok: true, data: result.data }
-    : { ok: false, error: result.error };
-}

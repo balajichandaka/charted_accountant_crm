@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { generateRecurringTickets, computeNextRunAt } from "../lib/recurrence";
+import { computeNextRunAt } from "../lib/recurrence";
 import { authMiddleware, requireCA } from "../middleware/auth";
 
 const router = Router();
@@ -125,13 +125,6 @@ router.delete("/:id", async (req, res, next) => {
       prisma.recurringSchedule.delete({ where: { id: req.params.id } }),
     ]);
     res.json({ ok: true });
-  } catch (err) { next(err); }
-});
-
-router.post("/run", async (_req, res, next) => {
-  try {
-    const result = await generateRecurringTickets();
-    res.json({ ok: true, data: result });
   } catch (err) { next(err); }
 });
 

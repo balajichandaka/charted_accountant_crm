@@ -2,7 +2,7 @@ import { addWeeks, addMonths, setDate, getISOWeek, getISOWeekYear, getDaysInMont
 import type { Frequency } from "@prisma/client";
 import { prisma } from "./prisma";
 import { requireFirmId } from "./tenant-context";
-import { notifyTicketAssigned } from "./notifications";
+import { notifyTicketParticipants } from "./notifications";
 import { logger } from "./logger";
 
 export function periodLabel(freq: Frequency, date: Date): string {
@@ -69,11 +69,10 @@ export async function generateRecurringTickets() {
             activities: { create: { firmId, type: "RECURRING_GENERATED" } },
           },
         });
-        if (schedule.assignee)
-          notifyTicketAssigned(ticket, schedule.assignee).catch((err) =>
-            logger.error({ err, ticketId: ticket.id }, "recurring assignee notification failed")
-          );
         generated++;
+        notifyTicketParticipants(ticket.id, "CREATED").catch((err) =>
+          logger.error({ err, ticketId: ticket.id }, "recurring ticket notification failed")
+        );
       } catch (e: unknown) {
         if ((e as { code?: string }).code === "P2002") { skipped++; continue; }
         throw e;

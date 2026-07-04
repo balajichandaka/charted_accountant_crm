@@ -37,6 +37,9 @@ services:
       JWT_SECRET: "iSXPhZRT+rGUrCkGLCzc8pct7qUYmqP0HCMGZN7sYB0="
       AUTH_SECRET: "iSXPhZRT+rGUrCkGLCzc8pct7qUYmqP0HCMGZN7sYB0="
       CRON_SECRET: "c0f487898ec28560067581803057de60"
+      # In-app poll for due recurring schedules (default every 60s). Set to false to use external cron only.
+      RECURRING_SCHEDULER_ENABLED: "${RECURRING_SCHEDULER_ENABLED:-true}"
+      RECURRING_POLL_INTERVAL_MS: "${RECURRING_POLL_INTERVAL_MS:-60000}"
       SMTP_HOST: "smtp.gmail.com"
       SMTP_PORT: "587"
       SMTP_SECURE: "false"

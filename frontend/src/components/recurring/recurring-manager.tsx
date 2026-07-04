@@ -6,14 +6,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { blockEnterSubmit } from "@/lib/form";
 import { format } from "date-fns";
-import { Plus, Loader2, Trash2, Play, Repeat, Pencil } from "lucide-react";
+import { Plus, Loader2, Trash2, Repeat, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { recurringSchema, type RecurringFormValues } from "@/schemas/recurring";
 import {
   createSchedule,
   setScheduleActive,
   deleteSchedule,
-  runRecurringNow,
 } from "@/actions/recurring";
 import { FREQUENCY_LABEL, RECURRING_FREQUENCIES } from "@/lib/labels";
 import { Button } from "@/components/ui/button";
@@ -217,35 +216,6 @@ function NewScheduleDialog({
   );
 }
 
-function RunNowButton() {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  return (
-    <Button
-      variant="outline"
-      disabled={pending}
-      onClick={() =>
-        start(async () => {
-          const res = await runRecurringNow();
-          if (res.ok && res.data) {
-            toast.success(
-              `Generated ${res.data.generated}, skipped ${res.data.skipped}`
-            );
-            router.refresh();
-          } else if (!res.ok) toast.error(res.error);
-        })
-      }
-    >
-      {pending ? (
-        <Loader2 className="size-4 animate-spin" />
-      ) : (
-        <Play className="size-4" />
-      )}
-      Run generation now
-    </Button>
-  );
-}
-
 function DeleteConfirmDialog({
   schedule,
   open,
@@ -377,7 +347,6 @@ export function RecurringManager({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap justify-end gap-2">
-        <RunNowButton />
         <NewScheduleDialog
           clients={clients}
           templates={templates}

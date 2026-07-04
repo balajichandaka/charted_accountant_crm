@@ -17,6 +17,7 @@ import cronRouter from "./routes/cron";
 import platformRouter from "./routes/platform";
 import firmRouter from "./routes/firm";
 import { errorHandler } from "./middleware/error";
+import { startRecurringScheduler } from "./lib/recurring-scheduler";
 
 const app = express();
 const PORT = process.env.PORT ?? 4000;
@@ -65,7 +66,10 @@ app.use("/api/firm",       firmRouter);
 
 app.use(errorHandler);
 
-app.listen(PORT, () => logger.info({ port: PORT }, "backend started"));
+app.listen(PORT, () => {
+  logger.info({ port: PORT }, "backend started");
+  startRecurringScheduler();
+});
 
 // Last-resort handlers so crashes are logged instead of vanishing.
 process.on("unhandledRejection", (reason) => {
