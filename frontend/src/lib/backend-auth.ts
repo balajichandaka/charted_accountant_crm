@@ -29,6 +29,7 @@ export async function loginWithBackend(
       const text = await res.text();
       let json: {
         ok: boolean;
+        error?: string;
         data?: {
           token: string;
           user: { id: string; name: string; email: string; role: Role; firmId: string };
@@ -46,10 +47,7 @@ export async function loginWithBackend(
       }
 
       if (res.status >= 500) {
-        const msg =
-          typeof (json as { error?: string }).error === "string"
-            ? (json as { error: string }).error
-            : text.slice(0, 200);
+        const msg = typeof json.error === "string" ? json.error : text.slice(0, 200);
         throw new Error(`Login service error (${res.status}): ${msg}`);
       }
 
