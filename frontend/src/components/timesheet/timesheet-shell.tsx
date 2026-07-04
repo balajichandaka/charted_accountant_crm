@@ -71,7 +71,7 @@ export function TimesheetShell({
   const isCurrentWeek = from === dayKey(startOfWeek(new Date(today), { weekStartsOn: 1 }));
 
   const calendarHeader = (
-    <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-1">
         <Button
           variant="outline"
@@ -158,7 +158,7 @@ export function TimesheetShell({
 
   if (!showTeam) {
     return (
-      <div className="space-y-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         {calendarHeader}
         {view === "day" ? (
           <CalendarDayView entries={entries} date={dayDate} today={today} tickets={tickets} />
@@ -173,13 +173,13 @@ export function TimesheetShell({
     <Tabs
       value={initialTab}
       onValueChange={(v) => pushParams({ tab: v })}
-      className="space-y-4"
+      className="flex min-h-0 flex-1 flex-col gap-4"
     >
-      <TabsList>
+      <TabsList className="shrink-0">
         <TabsTrigger value="mine">My Calendar</TabsTrigger>
         <TabsTrigger value="team">Team</TabsTrigger>
       </TabsList>
-      <TabsContent value="mine" className="space-y-4">
+      <TabsContent value="mine" className="flex min-h-0 flex-1 flex-col gap-4">
         {calendarHeader}
         {view === "day" ? (
           <CalendarDayView entries={entries} date={dayDate} today={today} tickets={tickets} />

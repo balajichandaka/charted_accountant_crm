@@ -1,15 +1,16 @@
 import { format } from "date-fns";
 
-// Full 24-hour day. The grid is taller than the viewport and scrolls; see
-// SCROLL_VIEWPORT_PX / DEFAULT_SCROLL_MINUTES for the scroll container.
+// Full 24-hour day. The grid is taller than the viewport and scrolls internally;
+// see DEFAULT_SCROLL_MINUTES for where the scroll container opens.
 export const DAY_START = 0;
 export const DAY_END = 24 * 60;
 export const SLOT_MINUTES = 30;
 export const HOUR_HEIGHT_PX = 56;
 export const GRID_HEIGHT_PX = (HOUR_HEIGHT_PX * (DAY_END - DAY_START)) / 60; // 24h grid
-// Visible height of the scrolling calendar area, and where it opens by default.
-export const SCROLL_VIEWPORT_PX = 620;
-export const DEFAULT_SCROLL_MINUTES = 7 * 60; // open near the start of the work day
+// The calendar fills the available height and scrolls internally through the full
+// 24-hour day (12 AM → 11 PM); it opens on the work day (~9 AM at the top) so the
+// 10 AM–7 PM window is visible by default, and users can scroll up/down for the rest.
+export const DEFAULT_SCROLL_MINUTES = 9 * 60;
 
 export type TimesheetEntry = {
   id: string;
@@ -42,10 +43,12 @@ export function fmtHours(minutes: number): string {
 }
 
 export function minutesToTimeLabel(minutes: number): string {
-  // 24-hour clock, e.g. 13:00 / 13:30.
+  // 12-hour clock with AM/PM, e.g. 1 PM / 1:30 PM.
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  const period = h >= 12 ? "PM" : "AM";
+  const hour12 = h % 12 || 12;
+  return m ? `${hour12}:${String(m).padStart(2, "0")} ${period}` : `${hour12} ${period}`;
 }
 
 export function timeInputToMinutes(value: string): number {
@@ -105,10 +108,12 @@ export function timeRangeLabel(startMinutes: number, durationMinutes: number): s
 }
 
 function shortTimeLabel(minutes: number): string {
-  // Compact 24-hour label, e.g. 13 / 13:30.
+  // Compact 12-hour label, e.g. 1p / 1:30p.
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return m ? `${h}:${String(m).padStart(2, "0")}` : `${h}`;
+  const period = h >= 12 ? "p" : "a";
+  const hour12 = h % 12 || 12;
+  return m ? `${hour12}:${String(m).padStart(2, "0")}${period}` : `${hour12}${period}`;
 }
 
 export function shortTimeRangeLabel(startMinutes: number, durationMinutes: number): string {

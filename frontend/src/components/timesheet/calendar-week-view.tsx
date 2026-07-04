@@ -10,9 +10,9 @@ import {
   fmtHours,
   hourLabels,
   GRID_HEIGHT_PX,
+  HOUR_HEIGHT_PX,
   DAY_START,
   DAY_END,
-  SCROLL_VIEWPORT_PX,
   DEFAULT_SCROLL_MINUTES,
 } from "./calendar-utils";
 import { DayTimeBlocks } from "./day-time-blocks";
@@ -36,10 +36,11 @@ export function CalendarWeekView({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [formOpen, setFormOpen] = useState(false);
 
-  // Open the scroll view near the start of the work day rather than midnight.
+  // Open the scroll view on the work day rather than midnight (offset by the top spacer).
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop =
+        HOUR_HEIGHT_PX / 2 +
         (DEFAULT_SCROLL_MINUTES / (DAY_END - DAY_START)) * GRID_HEIGHT_PX;
     }
   }, []);
@@ -67,9 +68,9 @@ export function CalendarWeekView({
 
   return (
     <>
-      <div className="overflow-x-auto rounded-lg border">
-        <div className="min-w-[720px]">
-          <div className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] border-b bg-muted/30">
+      <div className="flex min-h-0 flex-1 flex-col overflow-x-auto rounded-lg border">
+        <div className="flex min-h-0 flex-1 flex-col min-w-[720px]">
+          <div className="grid shrink-0 grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] border-b bg-muted/30">
             <div />
             {days.map((d) => (
               <div
@@ -86,9 +87,10 @@ export function CalendarWeekView({
           </div>
           <div
             ref={scrollRef}
-            className="overflow-y-auto"
-            style={{ maxHeight: SCROLL_VIEWPORT_PX }}
+            className="min-h-0 flex-1 overflow-y-auto"
           >
+          {/* Top clearance so the first hour (12 AM) isn't flush against the edge. */}
+          <div aria-hidden style={{ height: HOUR_HEIGHT_PX / 2 }} />
           <div className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))]">
             <div className="relative" style={{ height: GRID_HEIGHT_PX }}>
               {hours.map((h) => (
@@ -142,6 +144,8 @@ export function CalendarWeekView({
               );
             })}
           </div>
+          {/* Bottom clearance so the last hour (11 PM) isn't flush against the edge. */}
+          <div aria-hidden style={{ height: HOUR_HEIGHT_PX / 2 }} />
           </div>
         </div>
       </div>

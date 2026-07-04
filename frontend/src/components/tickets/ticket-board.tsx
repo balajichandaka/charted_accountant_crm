@@ -127,8 +127,6 @@ function Column({
   );
 }
 
-const DONE_CAP = 10;
-
 export function TicketBoard({ tickets, showDone = false }: { tickets: BoardTicket[]; showDone?: boolean }) {
   const router = useRouter();
   const [items, setItems] = useState(tickets);
@@ -139,13 +137,14 @@ export function TicketBoard({ tickets, showDone = false }: { tickets: BoardTicke
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
 
+  // Done is hidden until "Show Done" is on; the backend then returns only the
+  // last 7 days of completed tickets.
   const visibleColumns = showDone ? BOARD_COLUMNS : BOARD_COLUMNS.filter((s) => s !== "DONE");
 
   const grouped = useMemo(() => {
     const g: Record<string, BoardTicket[]> = {};
     for (const s of visibleColumns) g[s] = [];
     for (const t of items) if (g[t.status] !== undefined) g[t.status].push(t);
-    if (g["DONE"] && g["DONE"].length > DONE_CAP) g["DONE"] = g["DONE"].slice(0, DONE_CAP);
     return g;
   }, [items, visibleColumns]);
 

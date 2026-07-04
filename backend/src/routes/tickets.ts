@@ -108,9 +108,20 @@ router.get("/board", async (req, res, next) => {
   try {
     const showDone = req.query.showDone === "true";
     const activeStatuses: TicketStatus[] = ["OPEN", "IN_PROGRESS", "REVIEW", "BLOCKED"];
-    const statuses = showDone ? BOARD_STATUSES : activeStatuses;
-    const where = { status: { in: statuses }, ...scopeFor(req) };
-    const tickets = await prisma.ticket.findMany({ where, orderBy: [{ priority: "desc" }, { dueDate: "asc" }], take: 300, include: { client: true, assignee: true, category: true, _count: { select: { subtasks: true } } } });
+    // Done is hidden by default. When "Show Done" is on, include only tickets
+    // completed in the last 7 days (not the full history).
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const statusFilter = showDone
+      ? {
+          OR: [
+            { status: { in: activeStatuses } },
+            { status: "DONE" as TicketStatus, completedAt: { gte: sevenDaysAgo } },
+          ],
+        }
+      : { status: { in: activeStatuses } };
+    // AND-wrap so this doesn't collide with the OR that scopeFor() adds for non-CA users.
+    const where = { AND: [scopeFor(req), statusFilter] };
+    const tickets = await prisma.ticket.findMany({ where, orderBy: [{ completedAt: "desc" }, { priority: "desc" }, { dueDate: "asc" }], take: 300, include: { client: true, assignee: true, category: true, _count: { select: { subtasks: true } } } });
     res.json({ ok: true, data: { tickets, showDone } });
   } catch (err) { next(err); }
 });
