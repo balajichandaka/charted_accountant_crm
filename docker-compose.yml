@@ -43,7 +43,7 @@ services:
       SMTP_USER: "srirampadalas@gmail.com"
       SMTP_PASS: "hjkitxscubasbygg"
       EMAIL_FROM: "Alert from CA Charan <srirampadalas@gmail.com>"
-      EMAIL_ENC_KEY: "${EMAIL_ENC_KEY:-}"
+      EMAIL_ENC_KEY: "${EMAIL_ENC_KEY:-aa660f81c1dedff0147a508e77891f1df3bbd77a0173c9dcb4571e52f2000852}"
       FIRM_CONTACT_EMAIL: "vscharanco@gmail.com"
       FIRM_CONTACT_PHONE: "6302846943"
       FIRM_ESCALATION_NAME: "Sai Charan"
@@ -57,7 +57,7 @@ services:
       ADMIN_EMAIL: "${ADMIN_EMAIL:-}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
       NODE_ENV: production
-      LOG_LEVEL: "${LOG_LEVEL:-info}"
+      LOG_LEVEL: "${LOG_LEVEL:-debug}"
     ports:
       - "4000:4000"
     volumes:
@@ -88,7 +88,7 @@ services:
       NEXT_PUBLIC_ROOT_DOMAIN: "${NEXT_PUBLIC_ROOT_DOMAIN:-cafirmops.in}"
       NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: "${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-iSXPhZRT+rGUrCkGLCzc8pct7qUYmqP0HCMGZN7sYB0=}"
       NODE_ENV: production
-      LOG_LEVEL: "${LOG_LEVEL:-info}"
+      LOG_LEVEL: "${LOG_LEVEL:-debug}"
     ports:
       - "${APP_PORT:-3000}:3000"
 
