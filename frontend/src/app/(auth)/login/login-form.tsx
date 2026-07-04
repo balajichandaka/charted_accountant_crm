@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { AlertCircle, Loader2, Eye, EyeOff } from "lucide-react";
-import { authenticate } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,14 +18,25 @@ export function LoginForm() {
     setError(undefined);
 
     const formData = new FormData(e.currentTarget);
-    const err = await authenticate(undefined, formData);
-    if (!err) {
-      // Full page load avoids RSC soft-navigation failures after Server Actions.
-      window.location.assign("/dashboard");
-      return;
-    }
+    const email = String(formData.get("email") ?? "").trim().toLowerCase();
+    const password = String(formData.get("password") ?? "");
 
-    setError(err);
+    try {
+      const res = await fetch("/api/auth/firm-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (res.ok && json.ok) {
+        window.location.assign("/dashboard");
+        return;
+      }
+      setError(json.error ?? "Invalid email or password.");
+    } catch (cause) {
+      console.error("[login]", cause);
+      setError("Sign-in failed. Clear cookies and try again.");
+    }
     setPending(false);
   }
 

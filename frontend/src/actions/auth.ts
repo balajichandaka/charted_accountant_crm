@@ -13,28 +13,29 @@ export async function authenticate(
   _prevState: string | undefined,
   formData: FormData
 ): Promise<string | undefined> {
-  const email = formData.get("email");
-  const password = formData.get("password");
-
-  if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
-    return "Invalid email or password.";
-  }
-
-  // Resolve which firm this login is for from the subdomain the user is on.
-  const headerList = await headers();
-  const firmSlug = firmSlugFromHost(
-    headerList.get("x-firm-slug") ?? headerList.get("host")
-  );
-  if (!firmSlug) {
-    return "This sign-in page is not associated with a firm. Use your firm's address (e.g. yourfirm.cafirmops.in).";
-  }
-
-  const user = await loginWithBackend(email.trim(), password, firmSlug);
-  if (!user) {
-    return "Invalid email or password.";
-  }
-
   try {
+    const email = formData.get("email");
+    const password = formData.get("password");
+
+    if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
+      return "Invalid email or password.";
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Resolve which firm this login is for from the subdomain the user is on.
+    const headerList = await headers();
+    const host = headerList.get("x-firm-slug") ?? headerList.get("host");
+    const firmSlug = firmSlugFromHost(host);
+    if (!firmSlug) {
+      return "This sign-in page is not associated with a firm. Use your firm's address (e.g. yourfirm.cafirmops.in).";
+    }
+
+    const user = await loginWithBackend(normalizedEmail, password, firmSlug);
+    if (!user) {
+      return "Invalid email or password.";
+    }
+
     // Set the session cookie without Auth.js building an absolute redirect URL
     // (behind Docker/proxy that can produce an unreachable host after login).
     const result = await signIn("credentials", {
@@ -48,17 +49,21 @@ export async function authenticate(
       redirect: false,
     });
     if (result?.error) {
-      console.error("[auth] signIn failed:", result.error);
+      console.error("[auth] signIn failed:", result.error, { host, firmSlug });
       return "Sign-in failed. Clear cookies and try again.";
     }
+
+    return undefined;
   } catch (error) {
+    console.error("[auth] authenticate error:", error);
     if (error instanceof AuthError) {
       return "Invalid email or password.";
     }
-    throw error;
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return "Sign-in failed. Please try again.";
   }
-
-  return undefined;
 }
 
 export async function logout() {

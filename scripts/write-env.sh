@@ -42,6 +42,8 @@ umask 077
   printf '%s=%s\n' ADMIN_PASSWORD "$ADMIN_PASSWORD"
   printf '%s=%s\n' APP_PUBLIC_URL "${APP_PUBLIC_URL:-https://cafirmops.in}"
   printf '%s=%s\n' APP_PORT "${APP_PORT:-3000}"
+  # Stable Server Action IDs across Docker rebuilds (must match docker-compose build arg).
+  printf '%s=%s\n' NEXT_SERVER_ACTIONS_ENCRYPTION_KEY "${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-iSXPhZRT+rGUrCkGLCzc8pct7qUYmqP0HCMGZN7sYB0=}"
 } > "$ENV_FILE"
 
 echo "Wrote production $ENV_FILE from deploy secrets"

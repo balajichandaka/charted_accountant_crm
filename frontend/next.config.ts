@@ -8,7 +8,15 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "10mb",
       // Multi-tenant subdomains + CloudFront/ALB may send Origin != internal Host.
-      allowedOrigins: [rootDomain, `*.${rootDomain}`, "localhost:3000"],
+      allowedOrigins: [
+        rootDomain,
+        `*.${rootDomain}`,
+        `https://${rootDomain}`,
+        `https://*.${rootDomain}`,
+        "localhost:3000",
+        "localhost:3001",
+        "firm1.localhost:3001",
+      ],
     },
   },
 };

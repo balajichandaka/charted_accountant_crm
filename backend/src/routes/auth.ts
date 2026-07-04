@@ -22,7 +22,8 @@ router.post("/login", async (req, res, next) => {
       res.status(400).json({ ok: false, error: "Invalid email or password." });
       return;
     }
-    const { email, password, firmSlug } = parsed.data;
+    const email = parsed.data.email.trim().toLowerCase();
+    const { password, firmSlug } = parsed.data;
 
     // Resolve the firm from its slug (un-scoped: no tenant context at login).
     const firm = await basePrisma.firm.findUnique({

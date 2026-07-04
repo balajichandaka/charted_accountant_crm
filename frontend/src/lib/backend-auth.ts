@@ -45,6 +45,14 @@ export async function loginWithBackend(
         return { ...json.data.user, backendToken: json.data.token };
       }
 
+      if (res.status >= 500) {
+        const msg =
+          typeof (json as { error?: string }).error === "string"
+            ? (json as { error: string }).error
+            : text.slice(0, 200);
+        throw new Error(`Login service error (${res.status}): ${msg}`);
+      }
+
       return null;
     } catch {
       if (attempt === 0) continue;
