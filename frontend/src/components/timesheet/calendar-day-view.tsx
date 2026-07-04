@@ -9,9 +9,9 @@ import {
   dayKey,
   hourLabels,
   GRID_HEIGHT_PX,
+  HOUR_HEIGHT_PX,
   DAY_START,
   DAY_END,
-  SCROLL_VIEWPORT_PX,
   DEFAULT_SCROLL_MINUTES,
 } from "./calendar-utils";
 import { DayTimeBlocks } from "./day-time-blocks";
@@ -33,10 +33,11 @@ export function CalendarDayView({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [formOpen, setFormOpen] = useState(false);
 
-  // Open the scroll view near the start of the work day rather than midnight.
+  // Open the scroll view on the work day rather than midnight (offset by the top spacer).
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop =
+        HOUR_HEIGHT_PX / 2 +
         (DEFAULT_SCROLL_MINUTES / (DAY_END - DAY_START)) * GRID_HEIGHT_PX;
     }
   }, []);
@@ -60,15 +61,16 @@ export function CalendarDayView({
 
   return (
     <>
-      <div className="overflow-hidden rounded-lg border">
-        <div className="border-b bg-muted/30 px-4 py-2 text-center">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
+        <div className="shrink-0 border-b bg-muted/30 px-4 py-2 text-center">
           <span className="text-sm font-semibold">{format(new Date(date), "EEEE, dd MMM yyyy")}</span>
         </div>
         <div
           ref={scrollRef}
-          className="overflow-y-auto"
-          style={{ maxHeight: SCROLL_VIEWPORT_PX }}
+          className="min-h-0 flex-1 overflow-y-auto"
         >
+        {/* Top clearance so the first hour (12 AM) isn't flush against the edge. */}
+        <div aria-hidden style={{ height: HOUR_HEIGHT_PX / 2 }} />
         <div className="grid grid-cols-[3.5rem_1fr]">
           <div className="relative" style={{ height: GRID_HEIGHT_PX }}>
             {hours.map((h) => (
@@ -115,6 +117,8 @@ export function CalendarDayView({
             />
           </div>
         </div>
+        {/* Bottom clearance so the last hour (11 PM) isn't flush against the edge. */}
+        <div aria-hidden style={{ height: HOUR_HEIGHT_PX / 2 }} />
         </div>
       </div>
 

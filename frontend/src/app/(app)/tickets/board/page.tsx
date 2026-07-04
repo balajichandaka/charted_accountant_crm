@@ -41,7 +41,7 @@ export default async function BoardPage({
     <>
       <PageHeader
         title="Board"
-        description="Drag tickets across columns to update their status."
+        description="Drag tickets across columns to update their status. Click “Show Done” to see the last 7 days of completed work."
       >
         <BoardDoneToggle showDone={showDone} />
         <Button asChild>

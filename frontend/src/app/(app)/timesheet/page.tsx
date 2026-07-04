@@ -76,8 +76,8 @@ export default async function TimesheetPage({
         title="Timesheet"
         description="Log and review your hours in a calendar view. Leadership can review team totals in the Team tab."
       />
-      <Card>
-        <CardContent className="pt-6">
+      <Card className="flex min-h-0 flex-1 flex-col">
+        <CardContent className="flex min-h-0 flex-1 flex-col pt-6">
           <Suspense fallback={<div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>}>
             <TimesheetShell
               entries={data.entries}
