@@ -24,7 +24,6 @@ export type FirmProfile = {
 
 type FormValues = {
   brandName: string;
-  logoUrl: string;
   emailFromName: string;
   contactEmail: string;
   contactPhone: string;
@@ -35,7 +34,6 @@ type FormValues = {
 
 const FIELDS: { key: keyof FormValues; label: string; type?: string }[] = [
   { key: "brandName", label: "Brand name" },
-  { key: "logoUrl", label: "Logo URL" },
   { key: "emailFromName", label: "Email sender name" },
   { key: "contactEmail", label: "Contact email", type: "email" },
   { key: "contactPhone", label: "Contact phone" },
@@ -52,7 +50,6 @@ export function FirmBranding({ firm }: { firm: FirmProfile }) {
   } = useForm<FormValues>({
     defaultValues: {
       brandName: firm.brandName ?? "",
-      logoUrl: firm.logoUrl ?? "",
       emailFromName: firm.emailFromName ?? "",
       contactEmail: firm.contactEmail ?? "",
       contactPhone: firm.contactPhone ?? "",
