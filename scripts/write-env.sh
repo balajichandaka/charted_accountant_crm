@@ -6,6 +6,12 @@ APP_DIR="${APP_DIR:-$HOME/charted_accountant_crm}"
 ENV_FILE="$APP_DIR/.env"
 PROFILE="${WRITE_ENV_PROFILE:-prod}"
 
+read_env_value() {
+  local key="$1"
+  local file="$2"
+  grep -m1 "^${key}=" "$file" 2>/dev/null | cut -d= -f2- || true
+}
+
 if [ "$PROFILE" = "staging" ]; then
   if [ -n "${APP_PUBLIC_URL:-}" ]; then
     umask 077
@@ -23,6 +29,29 @@ if [ "$PROFILE" = "staging" ]; then
 fi
 
 # prod profile — full .env for self-hosted Postgres + admin bootstrap
+#
+# Postgres password is fixed when the pgdata volume is first created. GitHub secrets
+# must NOT overwrite POSTGRES_* on later deploys or every connection (migrate, backend) fails.
+
+if [ -f "$ENV_FILE" ]; then
+  saved_pg_password="$(read_env_value POSTGRES_PASSWORD "$ENV_FILE")"
+  if [ -n "$saved_pg_password" ]; then
+    POSTGRES_USER="$(read_env_value POSTGRES_USER "$ENV_FILE")"
+    POSTGRES_PASSWORD="$saved_pg_password"
+    POSTGRES_DB="$(read_env_value POSTGRES_DB "$ENV_FILE")"
+    echo "Preserving existing Postgres credentials from $ENV_FILE (pgdata volume password must not change on deploy)."
+  fi
+  if [ -z "${ADMIN_EMAIL:-}" ]; then
+    ADMIN_EMAIL="$(read_env_value ADMIN_EMAIL "$ENV_FILE")"
+  fi
+  if [ -z "${ADMIN_PASSWORD:-}" ]; then
+    ADMIN_PASSWORD="$(read_env_value ADMIN_PASSWORD "$ENV_FILE")"
+  fi
+  if [ -z "${ADMIN_NAME:-}" ]; then
+    ADMIN_NAME="$(read_env_value ADMIN_NAME "$ENV_FILE")"
+  fi
+fi
+
 if [ -z "${POSTGRES_PASSWORD:-}" ] || [ -z "${ADMIN_EMAIL:-}" ] || [ -z "${ADMIN_PASSWORD:-}" ]; then
   if [ -f "$ENV_FILE" ]; then
     echo "Using existing $ENV_FILE"

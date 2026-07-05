@@ -82,20 +82,32 @@ else
   "$COMPOSE" -f "$COMPOSE_FILE" build --progress=plain frontend
 fi
 
+wait_for_postgres() {
+  local attempt
+  for attempt in $(seq 1 30); do
+    if "$COMPOSE" -f "$COMPOSE_FILE" exec -T db pg_isready -U "${POSTGRES_USER:-ca}" -d "${POSTGRES_DB:-ca_app}" >/dev/null 2>&1; then
+      echo "Postgres ready (attempt $attempt)"
+      return 0
+    fi
+    sleep 2
+  done
+  echo "ERROR: Postgres did not become ready after 60s"
+  "$COMPOSE" -f "$COMPOSE_FILE" ps db || true
+  "$COMPOSE" -f "$COMPOSE_FILE" logs --tail=40 db || true
+  return 1
+}
+
 if [ "${WRITE_ENV_PROFILE:-}" = "prod" ]; then
   echo "==> Starting Postgres for migrations"
   "$COMPOSE" -f "$COMPOSE_FILE" up -d db
   echo "==> Waiting for Postgres"
-  for _ in $(seq 1 30); do
-    if "$COMPOSE" -f "$COMPOSE_FILE" exec -T db pg_isready -U ca -d ca_app >/dev/null 2>&1; then
-      break
-    fi
-    sleep 2
-  done
+  wait_for_postgres
+
   echo "==> Database migrations"
-  "$COMPOSE" -f "$COMPOSE_FILE" run --rm --no-deps backend npx prisma migrate deploy
+  # Omit --no-deps so the one-off backend container joins the compose network and can reach db:5432.
+  "$COMPOSE" -f "$COMPOSE_FILE" run --rm backend npx prisma migrate deploy
   echo "==> Admin bootstrap (if needed)"
-  "$COMPOSE" -f "$COMPOSE_FILE" run --rm --no-deps backend npx prisma db seed
+  "$COMPOSE" -f "$COMPOSE_FILE" run --rm backend npx prisma db seed
 fi
 
 "$COMPOSE" -f "$COMPOSE_FILE" up -d
