@@ -161,6 +161,24 @@ router.post("/", async (req, res, next) => {
     if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.issues[0]?.message }); return; }
     const d = parsed.data!;
     const firmId = req.user!.firm;
+
+    // Require the firm's own SMTP to be configured before creating a ticket.
+    // Tickets send client/team emails, and we never fall back to platform/default
+    // credentials for a firm's outbound mail — so block creation (rather than
+    // silently sending from someone else's mailbox) until SMTP is set up.
+    const firmSmtp = await prisma.firm.findFirst({
+      select: { smtpHost: true, smtpUser: true, smtpPassEnc: true },
+    });
+    if (!firmSmtp?.smtpHost || !firmSmtp.smtpUser || !firmSmtp.smtpPassEnc) {
+      res.status(400).json({
+        ok: false,
+        error:
+          "Ticket not created — please add your firm's email (SMTP) credentials in Settings first.",
+        code: "SMTP_NOT_CONFIGURED",
+      });
+      return;
+    }
+
     const ticket = await prisma.ticket.create({
       data: {
         firmId,

@@ -158,7 +158,14 @@ export function TicketCreateForm({
       return;
     }
     if (!res.ok) {
-      toast.error(res.error);
+      // If the firm hasn't configured SMTP, guide the user straight to Settings.
+      const smtpMissing = /SMTP/i.test(res.error);
+      toast.error(res.error, {
+        duration: smtpMissing ? 8000 : undefined,
+        action: smtpMissing
+          ? { label: "Open Settings", onClick: () => router.push("/settings") }
+          : undefined,
+      });
     }
     setIsCreating(false);
   }
