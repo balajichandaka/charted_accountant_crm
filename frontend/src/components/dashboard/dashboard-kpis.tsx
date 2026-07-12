@@ -7,6 +7,8 @@ import {
   CalendarDays,
   CircleCheckBig,
   Building2,
+  TriangleAlert,
+  CalendarClock,
   type LucideIcon,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,6 +29,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   calendar: CalendarDays,
   check: CircleCheckBig,
   building: Building2,
+  alert: TriangleAlert,
+  clock: CalendarClock,
 };
 export type IconKey = keyof typeof ICON_MAP;
 
@@ -78,7 +82,7 @@ export function DashboardKpis({ buckets }: { buckets: Bucket[] }) {
 
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {buckets.map((b) => {
           const Icon = ICON_MAP[b.icon];
           const inner = (

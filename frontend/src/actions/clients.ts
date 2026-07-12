@@ -1,12 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCA, getToken } from "@/lib/session";
+import { requireCA, requireUser, getToken } from "@/lib/session";
 import { apiMutate } from "@/lib/api";
 import type { ActionResult } from "@/lib/action-result";
 
 export async function createClient(input: unknown): Promise<ActionResult<{ id: string }>> {
-  await requireCA();
+  // Any authenticated firm member can add a client (editing stays CA-only).
+  await requireUser();
   const token = await getToken();
   const result = await apiMutate<{ id: string }>("POST", "/api/clients", input, token);
   if (result.ok) {

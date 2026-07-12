@@ -271,9 +271,10 @@ router.put("/:id", async (req, res, next) => {
         title: d.title, description: d.description || null,
         clientId: d.clientId, categoryId: d.categoryId || null,
         assigneeId: d.assigneeId || null, managerId: d.managerId || null,
-        priority: d.priority, billable: d.billable, invoiceStatus: d.invoiceStatus,
+        priority: d.priority, frequency: d.frequency, billable: d.billable, invoiceStatus: d.invoiceStatus,
         targetMinutes: d.targetMinutes != null && d.targetMinutes !== "" ? Number(d.targetMinutes) : null,
         documentsRequired: d.documentsRequired || null,
+        startDate: d.startDate ? new Date(d.startDate) : null,
         dueDate: d.dueDate ? new Date(d.dueDate) : null,
       },
     });

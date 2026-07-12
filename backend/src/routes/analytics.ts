@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { subDays, startOfDay, endOfDay, endOfWeek, startOfWeek } from "date-fns";
+import { subDays, addDays, startOfDay, endOfDay, endOfWeek, startOfWeek } from "date-fns";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { authMiddleware } from "../middleware/auth";
@@ -21,43 +21,114 @@ router.get("/dashboard", async (req, res, next) => {
     const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
     const dayStart = startOfDay(now);
+    const dayEnd = endOfDay(now);
     const last30 = subDays(dayStart, 30);
+    const in14 = endOfDay(addDays(now, 14)); // deadline radar horizon
     // Non-CA users see tickets where they are assignee OR manager.
     const scope = isCA ? {} : { OR: [{ assigneeId: userId }, { managerId: userId }] };
+    const openWhere = { ...scope, status: { in: [...OPEN] } };
 
     const [
-      openCount, dueThisWeek, completed30, activeClients, byStatus,
-      openTickets, dueThisWeekTickets, completedTickets, workload,
+      openCount, dueThisWeek, completed30, activeClients, byStatus, byPriority,
+      overdueCount, dueTodayCount, unassignedCount, blockedCount,
+      openTickets, dueThisWeekTickets, completedTickets,
+      overdueTickets, dueTodayTickets, unassignedTickets, blockedTickets,
+      ticketDeadlines, recurringDeadlines, activity, workload,
       myToday, myWeek,
     ] = await Promise.all([
-      prisma.ticket.count({ where: { ...scope, status: { in: [...OPEN] } } }),
-      prisma.ticket.count({ where: { ...scope, status: { in: [...OPEN] }, dueDate: { gte: now, lte: weekEnd } } }),
+      prisma.ticket.count({ where: openWhere }),
+      prisma.ticket.count({ where: { ...openWhere, dueDate: { gte: now, lte: weekEnd } } }),
       prisma.ticket.count({ where: { ...scope, status: "DONE", completedAt: { gte: last30 } } }),
       isCA ? prisma.client.count({ where: { isActive: true } }) : prisma.ticket.count({ where: { ...scope, status: "DONE" } }),
       prisma.ticket.groupBy({ by: ["status"], where: scope, _count: { _all: true } }),
-      prisma.ticket.findMany({ where: { ...scope, status: { in: [...OPEN] } }, orderBy: [{ dueDate: "asc" }, { priority: "desc" }], take: 50, select: LIST_SELECT }),
-      prisma.ticket.findMany({ where: { ...scope, status: { in: [...OPEN] }, dueDate: { gte: now, lte: weekEnd } }, orderBy: { dueDate: "asc" }, take: 50, select: LIST_SELECT }),
+      prisma.ticket.groupBy({ by: ["priority"], where: openWhere, _count: { _all: true } }),
+      prisma.ticket.count({ where: { ...openWhere, dueDate: { lt: dayStart } } }),
+      prisma.ticket.count({ where: { ...openWhere, dueDate: { gte: dayStart, lte: dayEnd } } }),
+      isCA ? prisma.ticket.count({ where: { status: { in: [...OPEN] }, assigneeId: null } }) : Promise.resolve(0),
+      prisma.ticket.count({ where: { ...scope, status: "BLOCKED" } }),
+      prisma.ticket.findMany({ where: openWhere, orderBy: [{ dueDate: "asc" }, { priority: "desc" }], take: 50, select: LIST_SELECT }),
+      prisma.ticket.findMany({ where: { ...openWhere, dueDate: { gte: now, lte: weekEnd } }, orderBy: { dueDate: "asc" }, take: 50, select: LIST_SELECT }),
       prisma.ticket.findMany({ where: { ...scope, status: "DONE", completedAt: { gte: last30 } }, orderBy: { completedAt: "desc" }, take: 50, select: LIST_SELECT }),
+      prisma.ticket.findMany({ where: { ...openWhere, dueDate: { lt: dayStart } }, orderBy: { dueDate: "asc" }, take: 50, select: LIST_SELECT }),
+      prisma.ticket.findMany({ where: { ...openWhere, dueDate: { gte: dayStart, lte: dayEnd } }, orderBy: { priority: "desc" }, take: 50, select: LIST_SELECT }),
+      isCA ? prisma.ticket.findMany({ where: { status: { in: [...OPEN] }, assigneeId: null }, orderBy: [{ dueDate: "asc" }, { priority: "desc" }], take: 50, select: LIST_SELECT }) : Promise.resolve([]),
+      prisma.ticket.findMany({ where: { ...scope, status: "BLOCKED" }, orderBy: { priority: "desc" }, take: 50, select: LIST_SELECT }),
+      prisma.ticket.findMany({ where: { ...openWhere, dueDate: { not: null, lte: in14 } }, orderBy: { dueDate: "asc" }, take: 40, select: LIST_SELECT }),
+      prisma.recurringSchedule.findMany({
+        where: { isActive: true, nextRunAt: { not: null, lte: in14 }, ...(isCA ? {} : { assigneeId: userId }) },
+        orderBy: { nextRunAt: "asc" },
+        take: 20,
+        select: { id: true, frequency: true, nextRunAt: true, client: { select: { name: true } }, template: { select: { name: true } } },
+      }),
+      prisma.activityLog.findMany({
+        where: isCA ? {} : { ticket: { is: { OR: [{ assigneeId: userId }, { managerId: userId }] } } },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: { id: true, type: true, createdAt: true, actor: { select: { name: true } }, ticket: { select: { id: true, ticketNumber: true, title: true } } },
+      }),
       isCA ? prisma.ticket.groupBy({ by: ["assigneeId"], where: { status: { in: [...OPEN] } }, _count: { _all: true } }) : Promise.resolve([]),
       prisma.timeEntry.aggregate({ where: { userId, workDate: { gte: dayStart } }, _sum: { minutes: true } }),
       prisma.timeEntry.aggregate({ where: { userId, workDate: { gte: weekStart } }, _sum: { minutes: true } }),
     ]);
 
-    let workloadRows: { name: string; count: number }[] = [];
+    let workloadRows: { name: string; count: number; unassigned?: boolean }[] = [];
     if (isCA && Array.isArray(workload) && workload.length) {
       const ids = workload.map((w) => w.assigneeId).filter(Boolean) as string[];
       const users = await prisma.user.findMany({ where: { id: { in: ids } } });
       const nameById = new Map(users.map((u) => [u.id, u.name]));
-      workloadRows = workload.map((w) => ({ name: w.assigneeId ? nameById.get(w.assigneeId) ?? "Unknown" : "Unassigned", count: w._count._all })).sort((a, b) => b.count - a.count);
+      workloadRows = workload
+        .map((w) => ({
+          name: w.assigneeId ? nameById.get(w.assigneeId) ?? "Unknown" : "Unassigned",
+          count: w._count._all,
+          unassigned: !w.assigneeId,
+        }))
+        .sort((a, b) => b.count - a.count);
     }
+
+    // Unified deadline feed for the compliance radar (tickets + recurring schedules).
+    const deadlines = [
+      ...ticketDeadlines.map((t) => ({
+        kind: "ticket" as const,
+        id: t.id,
+        ticketNumber: t.ticketNumber,
+        title: t.title,
+        clientName: t.client?.name ?? "—",
+        date: t.dueDate,
+        status: t.status,
+        priority: t.priority,
+      })),
+      ...recurringDeadlines.map((r) => ({
+        kind: "recurring" as const,
+        id: r.id,
+        title: r.template?.name ?? "Recurring work",
+        clientName: r.client?.name ?? "—",
+        date: r.nextRunAt,
+        frequency: r.frequency,
+      })),
+    ].sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime());
+
+    const recentActivity = activity.map((a) => ({
+      id: a.id,
+      type: a.type,
+      actorName: a.actor?.name ?? "Someone",
+      ticketId: a.ticket?.id ?? null,
+      ticketNumber: a.ticket?.ticketNumber ?? null,
+      ticketTitle: a.ticket?.title ?? null,
+      createdAt: a.createdAt,
+    }));
 
     res.json({
       ok: true,
       data: {
         openCount, dueThisWeek, completed30, activeClients,
+        overdueCount, dueTodayCount, unassignedCount, blockedCount,
         byStatus: Object.fromEntries(byStatus.map((s) => [s.status, s._count._all])),
+        byPriority: Object.fromEntries(byPriority.map((p) => [p.priority, p._count._all])),
         dueSoon: openTickets.slice(0, 8),
         openTickets, dueThisWeekTickets, completedTickets,
+        overdueTickets, dueTodayTickets, unassignedTickets, blockedTickets,
+        deadlines,
+        recentActivity,
         workloadRows,
         myHoursToday: Math.round((myToday._sum.minutes ?? 0) / 6) / 10,
         myHoursThisWeek: Math.round((myWeek._sum.minutes ?? 0) / 6) / 10,
