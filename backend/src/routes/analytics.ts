@@ -39,7 +39,7 @@ router.get("/dashboard", async (req, res, next) => {
       prisma.ticket.count({ where: openWhere }),
       prisma.ticket.count({ where: { ...openWhere, dueDate: { gte: now, lte: weekEnd } } }),
       prisma.ticket.count({ where: { ...scope, status: "DONE", completedAt: { gte: last30 } } }),
-      isCA ? prisma.client.count({ where: { isActive: true } }) : prisma.ticket.count({ where: { ...scope, status: "DONE" } }),
+      prisma.client.count({ where: { isActive: true } }), // active client count for all roles
       prisma.ticket.groupBy({ by: ["status"], where: scope, _count: { _all: true } }),
       prisma.ticket.groupBy({ by: ["priority"], where: openWhere, _count: { _all: true } }),
       prisma.ticket.count({ where: { ...openWhere, dueDate: { lt: dayStart } } }),
