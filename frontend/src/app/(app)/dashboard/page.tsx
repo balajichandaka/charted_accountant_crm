@@ -78,19 +78,13 @@ export default async function DashboardPage() {
       accent: "bg-destructive/12 text-destructive",
       tickets: data.overdueTickets,
     },
-    // "Clients" is CA-only: for non-CA the backend reuses this field for a
-    // personal completed-count, so the label would be misleading.
-    ...(isCA
-      ? [
-          {
-            key: "clients",
-            label: "Clients",
-            value: data.activeClients,
-            icon: "building" as const,
-            href: "/clients",
-          },
-        ]
-      : []),
+    {
+      key: "clients",
+      label: "Clients",
+      value: data.activeClients,
+      icon: "building",
+      href: "/clients",
+    },
     {
       key: "completed",
       label: "Completed (30d)",
