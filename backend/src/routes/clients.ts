@@ -44,7 +44,9 @@ router.get("/:id", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post("/", requireCA, async (req, res, next) => {
+// Any firm member (CA, manager or employee) can add a client; edits/deactivation
+// stay CA-only below. Creation is firm-scoped via req.user.firm regardless of role.
+router.post("/", async (req, res, next) => {
   try {
     const parsed = clientSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ ok: false, error: "Validation failed" }); return; }

@@ -28,8 +28,7 @@ type Client = {
 };
 
 export default async function ClientsPage() {
-  const user = await requireUser();
-  const isCA = user.role === "CA";
+  await requireUser();
   const token = await getToken();
 
   const clients = await apiGet<Client[]>("/api/clients", token);
@@ -40,20 +39,16 @@ export default async function ClientsPage() {
         title="Clients"
         description="Your firm's client master records."
       >
-        {isCA ? <NewClientButton /> : null}
+        <NewClientButton />
       </PageHeader>
 
       {clients.length === 0 ? (
         <EmptyState
           icon={Building2}
           title="No clients yet"
-          description={
-            isCA
-              ? "Add your first client to start assigning work."
-              : "No clients have been added yet."
-          }
+          description="Add your first client to start assigning work."
         >
-          {isCA ? <NewClientButton /> : null}
+          <NewClientButton />
         </EmptyState>
       ) : (
         <Card className="overflow-hidden py-0">
