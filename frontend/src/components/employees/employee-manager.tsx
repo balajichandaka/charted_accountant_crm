@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { blockEnterSubmit } from "@/lib/form";
-import { Plus, Pencil, Loader2, Trash2 } from "lucide-react";
+import { Plus, Pencil, Loader2, Trash2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { employeeSchema, type EmployeeFormValues } from "@/schemas/employee";
 import {
@@ -65,6 +65,7 @@ function EmployeeDialog({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const isEdit = Boolean(employee);
   const {
     register,
@@ -98,7 +99,7 @@ function EmployeeDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setShowPassword(false); }}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -147,12 +148,24 @@ function EmployeeDialog({
           </div>
           <div className="space-y-1.5">
             <Label>{isEdit ? "New password (optional)" : "Password *"}</Label>
-            <Input
-              type="password"
-              autoComplete="new-password"
-              placeholder={isEdit ? "Leave blank to keep current" : ""}
-              {...register("password")}
-            />
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
+                placeholder={isEdit ? "Leave blank to keep current" : ""}
+                className="pr-10"
+                {...register("password")}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
             {errors.password ? (
               <p className="text-xs text-destructive">
                 {errors.password.message}
