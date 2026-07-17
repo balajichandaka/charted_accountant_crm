@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,6 +19,7 @@ import {
   createWorkTemplate,
   updateWorkTemplate,
 } from "@/actions/templates";
+import { createCategory } from "@/actions/categories";
 import {
   FREQUENCY_LABEL,
   PRIORITY_LABEL,
@@ -28,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -68,6 +71,13 @@ export function TemplateForm({
   const router = useRouter();
   const isEdit = Boolean(template);
 
+  const [categoryList, setCategoryList] = useState(categories);
+  const [creatingCategory, setCreatingCategory] = useState(categories.length === 0);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [saveForFuture, setSaveForFuture] = useState(true);
+  const [categoryPending, setCategoryPending] = useState(false);
+  const [categoryError, setCategoryError] = useState<string | undefined>();
+
   const {
     register,
     handleSubmit,
@@ -95,6 +105,30 @@ export function TemplateForm({
     control,
     name: "subtasks",
   });
+
+  async function handleCreateCategory() {
+    const name = newCategoryName.trim();
+    if (!name) {
+      setCategoryError("Category name is required");
+      return;
+    }
+    setCategoryPending(true);
+    setCategoryError(undefined);
+    const res = await createCategory({ name, isActive: saveForFuture });
+    setCategoryPending(false);
+    if (!res.ok) {
+      setCategoryError(res.error);
+      return;
+    }
+    const created = res.data!;
+    setCategoryList((prev) =>
+      [...prev, created].sort((a, b) => a.name.localeCompare(b.name))
+    );
+    setValue("categoryId", created.id, { shouldValidate: true });
+    setNewCategoryName("");
+    setSaveForFuture(true);
+    setCreatingCategory(false);
+  }
 
   async function onSubmit(values: TemplateFormValues) {
     const res = isEdit
@@ -132,23 +166,94 @@ export function TemplateForm({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 sm:col-span-2">
               <Label>Category *</Label>
-              <Select
-                value={watch("categoryId")}
-                onValueChange={(v) => setValue("categoryId", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {creatingCategory ? (
+                <div className="space-y-2 rounded-md border border-dashed p-3">
+                  <Input
+                    autoFocus
+                    placeholder="e.g. GST"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    disabled={categoryPending}
+                  />
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="save-category-for-future"
+                      checked={saveForFuture}
+                      onCheckedChange={(v) => setSaveForFuture(v === true)}
+                      disabled={categoryPending}
+                    />
+                    <Label
+                      htmlFor="save-category-for-future"
+                      className="text-xs font-normal text-muted-foreground"
+                    >
+                      Save this category for future templates
+                    </Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Uncheck to use it just for this template — it won&apos;t be suggested next time.
+                  </p>
+                  {categoryError ? (
+                    <p className="text-xs text-destructive">{categoryError}</p>
+                  ) : null}
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={categoryPending}
+                      onClick={handleCreateCategory}
+                    >
+                      {categoryPending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : null}
+                      Add category
+                    </Button>
+                    {categoryList.length > 0 ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={categoryPending}
+                        onClick={() => {
+                          setCreatingCategory(false);
+                          setCategoryError(undefined);
+                          setNewCategoryName("");
+                        }}
+                      >
+                        Choose existing
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={watch("categoryId")}
+                    onValueChange={(v) => setValue("categoryId", v, { shouldValidate: true })}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categoryList.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCreatingCategory(true)}
+                  >
+                    <Plus className="size-4" />
+                    New category
+                  </Button>
+                </div>
+              )}
               {errors.categoryId ? (
                 <p className="text-xs text-destructive">
                   {errors.categoryId.message}

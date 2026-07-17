@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { requireCA } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 import { getToken } from "@/lib/session";
 import { apiGet } from "@/lib/api";
 import { PageHeader } from "@/components/page-header";
@@ -13,6 +13,7 @@ type Template = {
   id: string;
   name: string;
   categoryId: string;
+  category: { id: string; name: string };
   description: string | null;
   documentsRequired: string | null;
   defaultFrequency: string;
@@ -32,7 +33,7 @@ export default async function EditTemplatePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await requireCA();
+  await requireUser();
   const token = await getToken();
 
   let template: Template;
@@ -46,7 +47,11 @@ export default async function EditTemplatePage({
     notFound();
   }
 
-  const { categories } = formData;
+  // The active-only category list may be missing this template's own category
+  // (e.g. it was created as a one-off, or later deactivated) — keep it selectable.
+  const categories = formData.categories.some((c) => c.id === template.categoryId)
+    ? formData.categories
+    : [...formData.categories, template.category];
 
   return (
     <>

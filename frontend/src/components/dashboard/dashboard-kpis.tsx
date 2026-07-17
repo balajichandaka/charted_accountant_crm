@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { StatusBadge, PriorityBadge } from "@/components/status-badge";
+import { TicketNumberBadge } from "@/components/ticket-number-badge";
 import { cn } from "@/lib/utils";
 import type { TicketStatus, Priority } from "@/types/domain";
 
@@ -65,7 +66,7 @@ function TicketList({ tickets, onNavigate }: { tickets: BucketTicket[]; onNaviga
             onClick={onNavigate}
             className="flex items-center gap-3 py-3 transition-colors hover:bg-muted/50"
           >
-            <span className="text-xs text-muted-foreground tabular">#{t.ticketNumber}</span>
+            <TicketNumberBadge number={t.ticketNumber} />
             <span className="min-w-0 flex-1 truncate text-sm font-medium">{t.title}</span>
             <span className="hidden text-xs text-muted-foreground sm:inline">{t.client.name}</span>
             <PriorityBadge priority={t.priority} />

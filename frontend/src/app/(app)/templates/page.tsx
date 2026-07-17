@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { FileStack, Plus, ListChecks } from "lucide-react";
-import { requireCA } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 import { getToken } from "@/lib/session";
 import { apiGet } from "@/lib/api";
 import { PageHeader } from "@/components/page-header";
@@ -24,7 +24,7 @@ type Template = {
 };
 
 export default async function TemplatesPage() {
-  await requireCA();
+  await requireUser();
   const token = await getToken();
 
   const templates = await apiGet<Template[]>("/api/templates", token);

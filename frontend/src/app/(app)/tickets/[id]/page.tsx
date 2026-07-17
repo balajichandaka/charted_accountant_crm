@@ -7,6 +7,7 @@ import { getToken } from "@/lib/session";
 import { apiGet } from "@/lib/api";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge, PriorityBadge } from "@/components/status-badge";
+import { TicketNumberBadge } from "@/components/ticket-number-badge";
 import { StatusSelect, AssigneeSelect } from "@/components/tickets/ticket-controls";
 import { TicketSubtasks } from "@/components/tickets/ticket-subtasks";
 import { TicketTimeLog } from "@/components/tickets/ticket-time-log";
@@ -36,6 +37,8 @@ function activityText(type: ActivityType, meta: unknown): string {
       return "updated the assignee";
     case "COMMENTED":
       return "commented";
+    case "SUBTASK_ADDED":
+      return "added a sub-task";
     case "SUBTASK_TOGGLED":
       return m.subtask ? `updated sub-task "${m.subtask}"` : "updated a sub-task";
     case "TIME_LOGGED":
@@ -113,9 +116,11 @@ type Ticket = {
   timeEntries: Array<{
     id: string;
     minutes: number;
+    startMinutes?: number;
     description: string | null;
     workDate: string;
     user: { name: string } | null;
+    subtask: { id: string; title: string } | null;
   }>;
   activities: Array<{
     id: string;
@@ -183,7 +188,11 @@ export default async function TicketDetailPage({
 
       <PageHeader
         title={ticket.title}
-        description={`#${ticket.ticketNumber} · ${ticket.client.name}`}
+        description={
+          <span className="inline-flex items-center gap-1.5">
+            <TicketNumberBadge number={ticket.ticketNumber} /> {ticket.client.name}
+          </span>
+        }
       >
         <StatusSelect ticketId={ticket.id} status={ticket.status as Parameters<typeof StatusSelect>[0]["status"]} />
         <TicketEditDialog

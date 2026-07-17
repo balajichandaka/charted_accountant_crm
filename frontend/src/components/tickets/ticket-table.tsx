@@ -2,6 +2,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import type { Ticket, Client, User } from "@/types/domain";
 import { StatusBadge, PriorityBadge } from "@/components/status-badge";
+import { TicketNumberBadge } from "@/components/ticket-number-badge";
 import {
   Table,
   TableBody,
@@ -48,8 +49,10 @@ export function TicketTable({
             new Date(t.dueDate) < new Date();
           return (
             <TableRow key={t.id} className="cursor-pointer">
-              <TableCell className="text-xs text-muted-foreground tabular">
-                <Link href={`/tickets/${t.id}`}>#{t.ticketNumber}</Link>
+              <TableCell>
+                <Link href={`/tickets/${t.id}`}>
+                  <TicketNumberBadge number={t.ticketNumber} />
+                </Link>
               </TableCell>
               <TableCell>
                 <Link href={`/tickets/${t.id}`} className="font-medium">

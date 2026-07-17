@@ -3,6 +3,7 @@ import { format, isToday } from "date-fns";
 import { Repeat, CalendarCheck, Sparkles, Sparkle, Star, CheckCircle2 } from "lucide-react";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PriorityBadge } from "@/components/status-badge";
+import { TicketNumberBadge } from "@/components/ticket-number-badge";
 import { FREQUENCY_LABEL } from "@/lib/labels";
 import type { DeadlineItem } from "@/components/dashboard/types";
 import type { Frequency } from "@/types/domain";
@@ -15,9 +16,7 @@ function Row({ item }: { item: DeadlineItem }) {
           <Repeat className="size-3.5" aria-hidden />
         </span>
       ) : (
-        <span className="w-7 shrink-0 text-center text-xs text-muted-foreground tabular">
-          #{item.ticketNumber}
-        </span>
+        <TicketNumberBadge number={item.ticketNumber} className="shrink-0" />
       )}
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.title}</span>
       <span className="hidden max-w-40 truncate text-xs text-muted-foreground sm:inline">

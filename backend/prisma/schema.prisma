@@ -72,6 +72,7 @@ enum ActivityType {
   STATUS_CHANGED
   ASSIGNED
   COMMENTED
+  SUBTASK_ADDED
   SUBTASK_TOGGLED
   TIME_LOGGED
   ATTACHMENT_ADDED
@@ -368,6 +369,8 @@ model TicketSubtask {
   assigneeId String?
   assignee   User?   @relation(fields: [assigneeId], references: [id])
 
+  timeEntries TimeEntry[]
+
   @@index([firmId])
   @@index([ticketId])
 }
@@ -413,9 +416,13 @@ model TimeEntry {
   userId   String
   user     User   @relation(fields: [userId], references: [id])
 
+  subtaskId String?
+  subtask   TicketSubtask? @relation(fields: [subtaskId], references: [id], onDelete: SetNull)
+
   @@index([firmId])
   @@index([ticketId])
   @@index([userId, workDate])
+  @@index([subtaskId])
 }
 
 model Attachment {

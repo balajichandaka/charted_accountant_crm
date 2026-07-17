@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { TicketNumberBadge } from "@/components/ticket-number-badge";
 
 export function TicketDeleteButton({
   ticketId,
@@ -38,7 +39,8 @@ export function TicketDeleteButton({
           <DialogHeader>
             <DialogTitle>Delete this ticket permanently?</DialogTitle>
             <DialogDescription>
-              This permanently deletes ticket #{ticketNumber} along with its sub-tasks,
+              This permanently deletes ticket{" "}
+              <TicketNumberBadge number={ticketNumber} /> along with its sub-tasks,
               comments, attachments, time logs and activity history. This cannot be undone.
             </DialogDescription>
           </DialogHeader>

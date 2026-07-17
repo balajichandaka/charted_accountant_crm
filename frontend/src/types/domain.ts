@@ -13,6 +13,7 @@ export type ActivityType =
   | "STATUS_CHANGED"
   | "ASSIGNED"
   | "COMMENTED"
+  | "SUBTASK_ADDED"
   | "SUBTASK_TOGGLED"
   | "TIME_LOGGED"
   | "ATTACHMENT_ADDED"
