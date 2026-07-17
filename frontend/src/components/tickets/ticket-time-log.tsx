@@ -9,6 +9,7 @@ import { logTime } from "@/actions/tickets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   fmtHours,
   minutesToTimeInput,
@@ -25,6 +26,7 @@ type Entry = {
   description: string | null;
   workDate: string;
   user: { name: string } | null;
+  subtask?: { id: string; title: string } | null;
 };
 
 function todayStr() {
@@ -163,6 +165,11 @@ export function TicketTimeLog({
                     ? timeRangeLabel(e.startMinutes, e.minutes)
                     : fmtHours(e.minutes)}
                 </span>
+                {e.subtask ? (
+                  <Badge variant="outline" className="text-xs">
+                    {e.subtask.title}
+                  </Badge>
+                ) : null}
                 {e.description ? (
                   <span className="text-muted-foreground">— {e.description}</span>
                 ) : null}

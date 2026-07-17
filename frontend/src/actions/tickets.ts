@@ -121,6 +121,24 @@ export async function assignTicket(
     : { ok: false, error: result.error };
 }
 
+export async function addSubtask(
+  ticketId: string,
+  title: string
+): Promise<ActionResult<{ id: string; title: string; order: number; status: "TODO" | "DONE" }>> {
+  await requireUser();
+  const token = await getToken();
+  const result = await apiMutate<{ id: string; title: string; order: number; status: "TODO" | "DONE" }>(
+    "POST",
+    `/api/tickets/${ticketId}/subtasks`,
+    { title },
+    token
+  );
+  if (result.ok) revalidatePath(`/tickets/${ticketId}`);
+  return result.ok
+    ? { ok: true, data: result.data }
+    : { ok: false, error: result.error };
+}
+
 export async function toggleSubtask(
   ticketId: string,
   subtaskId: string,
@@ -148,6 +166,7 @@ export async function logTime(
     workDate?: string;
     description?: string;
     billable?: boolean;
+    subtaskId?: string;
   }
 ): Promise<ActionResult> {
   await requireUser();

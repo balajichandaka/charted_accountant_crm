@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { requireCA } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 import { getToken } from "@/lib/session";
 import { apiGet } from "@/lib/api";
 import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/empty-state";
-import { Button } from "@/components/ui/button";
 import { TemplateForm } from "@/components/templates/template-form";
 
 type FormData = {
@@ -13,7 +11,7 @@ type FormData = {
 };
 
 export default async function NewTemplatePage() {
-  await requireCA();
+  await requireUser();
   const token = await getToken();
 
   const { categories } = await apiGet<FormData>("/api/templates/form-data", token);
@@ -30,18 +28,7 @@ export default async function NewTemplatePage() {
         title="New work template"
         description="Define a task and its sub-task checklist."
       />
-      {categories.length === 0 ? (
-        <EmptyState
-          title="No categories yet"
-          description="Add a category of work in Settings before creating templates."
-        >
-          <Button asChild>
-            <Link href="/settings">Go to Settings</Link>
-          </Button>
-        </EmptyState>
-      ) : (
-        <TemplateForm categories={categories} />
-      )}
+      <TemplateForm categories={categories} />
     </>
   );
 }

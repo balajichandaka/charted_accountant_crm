@@ -61,7 +61,7 @@ const fullInclude = {
     where: { parentId: null },
     orderBy: { createdAt: "asc" as const },
   },
-  timeEntries: { include: { user: true }, orderBy: { workDate: "desc" as const } },
+  timeEntries: { include: { user: true, subtask: { select: { id: true, title: true } } }, orderBy: { workDate: "desc" as const } },
   attachments: { include: { uploadedBy: true } },
   activities: { include: { actor: true }, orderBy: { createdAt: "desc" as const } },
 };
@@ -296,6 +296,31 @@ router.patch("/:id/assign", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/tickets/:id/subtasks  (add a custom sub-task to an existing ticket)
+router.post("/:id/subtasks", async (req, res, next) => {
+  try {
+    const schema = z.object({ title: z.string().trim().min(1, "Sub-task title is required") });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.issues[0]?.message }); return; }
+
+    const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id }, select: { id: true } });
+    if (!ticket) { res.status(404).json({ ok: false, error: "Ticket not found." }); return; }
+
+    const max = await prisma.ticketSubtask.aggregate({ where: { ticketId: req.params.id }, _max: { order: true } });
+    const subtask = await prisma.ticketSubtask.create({
+      data: {
+        firmId: req.user!.firm,
+        ticketId: req.params.id,
+        title: parsed.data.title,
+        order: (max._max.order ?? -1) + 1,
+        status: "TODO",
+      },
+    });
+    await prisma.activityLog.create({ data: { firmId: req.user!.firm, type: "SUBTASK_ADDED", actorId: req.user!.sub, ticketId: req.params.id } });
+    res.json({ ok: true, data: subtask });
+  } catch (err) { next(err); }
+});
+
 // PATCH /api/tickets/:id/subtasks/:subId
 router.patch("/:id/subtasks/:subId", async (req, res, next) => {
   try {
@@ -315,6 +340,7 @@ router.post("/:id/time-entries", async (req, res, next) => {
       startMinutes: z.coerce.number().int().min(0).max(1439).optional(),
       description: z.string().optional(),
       billable: z.boolean().optional(),
+      subtaskId: z.string().optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.issues[0]?.message }); return; }
@@ -327,6 +353,10 @@ router.post("/:id/time-entries", async (req, res, next) => {
       res.status(404).json({ ok: false, error: "Ticket not found." });
       return;
     }
+    if (d.subtaskId) {
+      const subtask = await prisma.ticketSubtask.findFirst({ where: { id: d.subtaskId, ticketId: req.params.id }, select: { id: true } });
+      if (!subtask) { res.status(400).json({ ok: false, error: "Sub-task not found on this ticket." }); return; }
+    }
     await prisma.timeEntry.create({
       data: {
         firmId: req.user!.firm,
@@ -337,6 +367,7 @@ router.post("/:id/time-entries", async (req, res, next) => {
         workDate: d.workDate ? new Date(d.workDate) : new Date(),
         description: d.description || null,
         billable: d.billable ?? true,
+        subtaskId: d.subtaskId || null,
       },
     });
     await prisma.activityLog.create({ data: { firmId: req.user!.firm, type: "TIME_LOGGED", actorId: req.user!.sub, ticketId: req.params.id, metadata: { minutes: d.minutes } } });

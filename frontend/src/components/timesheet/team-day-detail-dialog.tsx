@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { TicketNumberBadge } from "@/components/ticket-number-badge";
 import {
   Dialog,
   DialogContent,
@@ -89,8 +90,8 @@ function EntryRow({
     return (
       <li className="flex items-center justify-between gap-2 rounded-sm border px-2 py-1.5 text-sm">
         <span className="min-w-0">
-          <span className="font-medium">
-            #{entry.ticketNumber} {entry.ticketTitle}
+          <span className="inline-flex items-center gap-1.5 font-medium">
+            <TicketNumberBadge number={entry.ticketNumber} /> {entry.ticketTitle}
           </span>
           <span className="ml-2 tabular text-muted-foreground">
             {timeRangeLabel(entry.startMinutes, entry.minutes)}
@@ -130,8 +131,8 @@ function EntryRow({
 
   return (
     <li className="space-y-2 rounded-sm border p-2">
-      <p className="text-sm font-medium">
-        #{entry.ticketNumber} {entry.ticketTitle}
+      <p className="flex items-center gap-1.5 text-sm font-medium">
+        <TicketNumberBadge number={entry.ticketNumber} /> {entry.ticketTitle}
       </p>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">

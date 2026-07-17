@@ -54,7 +54,7 @@ export function TimeBlock({
   const compact = heightPx < 40;
   const narrow = columnCount > 1;
   const label = timeRangeLabel(entry.startMinutes, entry.minutes);
-  const title = `#${entry.ticketNumber} ${entry.ticketTitle} · ${label} · ${fmtHours(entry.minutes)}`;
+  const title = `${entry.ticketNumber} ${entry.ticketTitle} · ${label} · ${fmtHours(entry.minutes)}`;
 
   function getColumn(): HTMLDivElement | null {
     return blockRef.current?.closest("[data-day-column]") as HTMLDivElement | null;
@@ -181,7 +181,7 @@ export function TimeBlock({
     >
       {narrow ? (
         <div className="min-w-0 leading-tight">
-          <p className="truncate font-medium">#{entry.ticketNumber}</p>
+          <p className="truncate font-medium">{entry.ticketNumber}</p>
           {!compact ? (
             <p className="truncate opacity-80">{entry.ticketTitle}</p>
           ) : null}
@@ -193,7 +193,7 @@ export function TimeBlock({
         </div>
       ) : compact ? (
         <p className="truncate font-medium leading-tight">
-          #{entry.ticketNumber}
+          {entry.ticketNumber}
           <span className="font-normal opacity-80">
             {" "}
             · {shortTimeRangeLabel(entry.startMinutes, entry.minutes)}
@@ -202,7 +202,7 @@ export function TimeBlock({
       ) : (
         <>
           <p className="truncate font-medium leading-tight">
-            #{entry.ticketNumber} {entry.ticketTitle}
+            {entry.ticketNumber} {entry.ticketTitle}
           </p>
           <p className="truncate text-[10px] opacity-80 tabular">{label}</p>
         </>

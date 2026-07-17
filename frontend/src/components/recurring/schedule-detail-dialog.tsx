@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
+import { TicketNumberBadge } from "@/components/ticket-number-badge";
 import { getScheduleDetail } from "@/actions/recurring";
 import { FREQUENCY_LABEL } from "@/lib/labels";
 import type { ScheduleRow, ScheduleDetailTicket } from "./types";
@@ -110,7 +111,7 @@ function ScheduleDetailBody({ schedule }: { schedule: ScheduleRow }) {
                   href={`/tickets/${t.id}`}
                   className="flex items-center gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-muted/50"
                 >
-                  <span className="text-xs text-muted-foreground tabular">#{t.ticketNumber}</span>
+                  <TicketNumberBadge number={t.ticketNumber} />
                   <span className="min-w-0 flex-1 truncate font-medium">{t.title}</span>
                   <Badge
                     variant={t.origin === "AUTO" ? "secondary" : "outline"}

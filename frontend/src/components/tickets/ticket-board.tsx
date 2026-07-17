@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { changeTicketStatus } from "@/actions/tickets";
 import { PriorityBadge } from "@/components/status-badge";
+import { TicketNumberBadge } from "@/components/ticket-number-badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { STATUS_LABEL, STATUS_DOT, BOARD_COLUMNS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -52,9 +53,7 @@ function Card({ t, dragging }: { t: BoardTicket; dragging?: boolean }) {
       )}
     >
       <div className="mb-1 flex items-center justify-between">
-        <span className="text-xs text-muted-foreground tabular">
-          #{t.ticketNumber}
-        </span>
+        <TicketNumberBadge number={t.ticketNumber} />
         <PriorityBadge priority={t.priority} />
       </div>
       <p className="text-sm font-medium leading-snug">{t.title}</p>

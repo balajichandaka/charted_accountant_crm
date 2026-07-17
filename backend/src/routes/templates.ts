@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { authMiddleware, requireCA } from "../middleware/auth";
+import { authMiddleware } from "../middleware/auth";
 
 const router = Router();
-router.use(authMiddleware, requireCA);
+// Any authenticated firm member (CA, manager or employee) can view and manage templates.
+router.use(authMiddleware);
 
 const templateSchema = z.object({
   name: z.string().trim().min(1),
@@ -37,7 +38,7 @@ router.get("/form-data", async (_req, res, next) => {
 
 router.get("/:id", async (req, res, next) => {
   try {
-    const template = await prisma.workTemplate.findUnique({ where: { id: req.params.id }, include: { subtasks: { orderBy: { order: "asc" } } } });
+    const template = await prisma.workTemplate.findUnique({ where: { id: req.params.id }, include: { subtasks: { orderBy: { order: "asc" } }, category: { select: { id: true, name: true } } } });
     if (!template) { res.status(404).json({ ok: false, error: "Not found" }); return; }
     res.json({ ok: true, data: template });
   } catch (err) { next(err); }

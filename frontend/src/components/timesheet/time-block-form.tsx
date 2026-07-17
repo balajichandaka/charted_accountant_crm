@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
+import { TicketNumberBadge } from "@/components/ticket-number-badge";
 import {
   Dialog,
   DialogContent,
@@ -83,7 +84,7 @@ export function TimeBlockForm({
 
   const pickerOptions = tickets.map((t) => ({
     value: t.id,
-    label: `#${t.ticketNumber} · ${t.title} · ${t.clientName}`,
+    label: `${t.ticketNumber} · ${t.title} · ${t.clientName}`,
   }));
 
   function resetAndClose() {
@@ -183,8 +184,8 @@ export function TimeBlockForm({
               />
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              #{mode.entry.ticketNumber} · {mode.entry.ticketTitle}
+            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <TicketNumberBadge number={mode.entry.ticketNumber} /> {mode.entry.ticketTitle}
             </p>
           )}
           <div className="grid grid-cols-2 gap-2">

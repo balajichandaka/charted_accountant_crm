@@ -51,7 +51,7 @@ const NAV: NavItem[] = [
   { href: "/tickets/board", label: "Board", icon: SquareKanban },
   { href: "/timesheet", label: "Timesheet", icon: CalendarClock },
   { href: "/clients", label: "Clients", icon: Building2, matchPrefix: true },
-  { href: "/templates", label: "Work Templates", icon: FileStack, caOnly: true, matchPrefix: true },
+  { href: "/templates", label: "Work Templates", icon: FileStack, matchPrefix: true },
   { href: "/recurring", label: "Recurring", icon: Repeat, caOnly: true },
   { href: "/employees", label: "Employees", icon: UsersRound, caOnly: true },
   { href: "/analytics", label: "Analytics", icon: ChartColumnBig, caOnly: true },

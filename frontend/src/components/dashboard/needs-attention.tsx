@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TicketNumberBadge } from "@/components/ticket-number-badge";
 import { cn } from "@/lib/utils";
 import type { BucketTicket } from "@/components/dashboard/types";
 
@@ -68,7 +69,7 @@ export function NeedsAttention({
                   href={`/tickets/${t.id}`}
                   className="flex items-center gap-2.5 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/50"
                 >
-                  <span className="text-xs text-muted-foreground tabular">#{t.ticketNumber}</span>
+                  <TicketNumberBadge number={t.ticketNumber} />
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">{t.title}</span>
                   <span className="flex shrink-0 gap-1">
                     {reasons.map((r) => (

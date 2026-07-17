@@ -153,12 +153,12 @@ function subjectFor(event: TicketEvent, ticket: TicketNotify, recipient: Recipie
     return prefix;
   }
   if (event === "ASSIGNED") {
-    return `${prefix} : Ticket #${ticket.ticketNumber} assigned to you — ${ticket.title}`;
+    return `${prefix} : Ticket ${ticket.ticketNumber} assigned to you — ${ticket.title}`;
   }
   if (event === "CREATED") {
-    return `${prefix} : New ticket #${ticket.ticketNumber} — ${ticket.title}`;
+    return `${prefix} : New ticket ${ticket.ticketNumber} — ${ticket.title}`;
   }
-  return `${prefix} : Ticket #${ticket.ticketNumber} completed — ${ticket.title}`;
+  return `${prefix} : Ticket ${ticket.ticketNumber} completed — ${ticket.title}`;
 }
 
 function clientCreatedBody(recipient: Recipient, ticket: TicketNotify, c: FirmComms): string {
@@ -259,7 +259,7 @@ function bodyFor(
   <p style="margin:0 0 16px;">${heading}:</p>
   <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border:1px solid #e5e7eb;border-radius:10px;background:#f9fafb;margin:0 0 20px;">
     <tr><td style="padding:16px 20px;">
-      <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;">Ticket #${ticket.ticketNumber}</div>
+      <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;">Ticket <span style="font-family:ui-monospace,'SF Mono',Consolas,monospace;background:#eef2f7;border:1px solid #e2e8f0;border-radius:4px;padding:1px 5px;">${ticket.ticketNumber}</span></div>
       <div style="font-size:16px;font-weight:600;color:#111827;margin-top:4px;">${title}</div>
     </td></tr>
   </table>
@@ -271,7 +271,7 @@ function bodyFor(
 
 ${heading}:
 
-Ticket #${ticket.ticketNumber} — ${ticket.title}
+Ticket ${ticket.ticketNumber} — ${ticket.title}
 
 View ticket: ${ticketUrl}`;
   return { html, text };

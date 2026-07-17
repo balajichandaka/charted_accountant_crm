@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TicketNumberBadge } from "@/components/ticket-number-badge";
 import type { ActivityItem } from "@/components/dashboard/types";
 
 const ICON: Record<string, LucideIcon> = {
@@ -66,8 +67,14 @@ export function ActivityFeed({ items }: { items: ActivityItem[] }) {
                       <span className="font-medium">{a.actorName}</span>{" "}
                       <span className="text-muted-foreground">{verb}</span>{" "}
                       {a.ticketId ? (
-                        <Link href={`/tickets/${a.ticketId}`} className="font-medium text-primary hover:underline">
-                          #{a.ticketNumber} {a.ticketTitle}
+                        <Link
+                          href={`/tickets/${a.ticketId}`}
+                          className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline"
+                        >
+                          {a.ticketNumber != null ? (
+                            <TicketNumberBadge number={a.ticketNumber} />
+                          ) : null}{" "}
+                          {a.ticketTitle}
                         </Link>
                       ) : (
                         <span className="text-muted-foreground">a ticket</span>
